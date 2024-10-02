@@ -1,6 +1,7 @@
 # Review Commit Action
 
-This GitHub Action waits for approval from a repository maintainer via a reaction on a commit comment. It's designed to be used in pull request workflows where you need manual approval before proceeding with certain actions.
+This GitHub Action waits for approval from a repository maintainer via a reaction on a commit comment.
+It's designed to be used in pull request workflows where you need manual approval before proceeding with certain actions.
 
 ## Features
 
@@ -19,6 +20,7 @@ To use this action in your workflow, add the following step:
     github-token: ${{ secrets.GITHUB_TOKEN }}
     approve-reaction: '+1'
     deny-reaction: '-1'
+    check-interval: '10'
 ```
 
 ### Inputs

@@ -24,7 +24,7 @@ runs:
   steps:
     - name: Check for PR HEAD commit
       shell: bash
-      if: ! github.event.pull_request.head.sha
+      if: github.event.pull_request.head.sha == ''
       run: |
         echo "::error::This action only works on pull requests."
         exit 1
@@ -43,7 +43,7 @@ runs:
 
     - name: Check for PR HEAD commit
       shell: bash
-      if: ! steps.cc.outputs.comment-id
+      if: steps.cc.outputs.comment-id == ''
       run: |
         echo "::error::Failed to create commit comment for approval."
         exit 1
