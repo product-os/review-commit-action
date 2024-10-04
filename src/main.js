@@ -57,6 +57,7 @@ class ApprovalAction {
         this.createReaction(this.commitCommentId, this.failedReaction)
         this.deleteReaction(this.commitCommentId, this.waitReactionId)
       }
+      throw error // Re-throw the error so it can be caught in tests
     }
   }
 
@@ -204,5 +205,6 @@ class ApprovalAction {
 const action = new ApprovalAction()
 
 module.exports = {
+  ApprovalAction,
   action
 }

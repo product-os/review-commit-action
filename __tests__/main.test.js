@@ -1,96 +1,89 @@
-/**
- * Unit tests for the action's main functionality, src/main.js
- */
 const core = require('@actions/core')
-const main = require('../src/main')
+const github = require('@actions/github')
+const { ApprovalAction } = require('../src/main')
 
-// Mock the GitHub Actions core library
-const debugMock = jest.spyOn(core, 'debug').mockImplementation()
-const getInputMock = jest.spyOn(core, 'getInput').mockImplementation()
-const setFailedMock = jest.spyOn(core, 'setFailed').mockImplementation()
-const setOutputMock = jest.spyOn(core, 'setOutput').mockImplementation()
+jest.mock('@actions/core')
+jest.mock('@actions/github')
 
-// Mock the action's main function
-const runMock = jest.spyOn(main, 'run')
+describe('ApprovalAction', () => {
+  let action
+  const mockOctokit = {
+    rest: {
+      repos: {
+        listCommentsForCommit: jest.fn(),
+        createCommitComment: jest.fn(),
+        getCollaboratorPermissionLevel: jest.fn()
+      },
+      reactions: {
+        createForCommitComment: jest.fn(),
+        deleteForCommitComment: jest.fn(),
+        listForCommitComment: jest.fn()
+      }
+    }
+  }
 
-// Other utilities
-const timeRegex = /^\d{2}:\d{2}:\d{2}/
-
-describe('action', () => {
   beforeEach(() => {
     jest.clearAllMocks()
+    github.getOctokit.mockReturnValue(mockOctokit)
+    github.context = {
+      repo: { owner: 'test-owner', repo: 'test-repo' },
+      payload: {
+        pull_request: {
+          head: { sha: 'test-sha' }
+        }
+      }
+    }
+    action = new ApprovalAction()
   })
 
-  it('sets the time output', async () => {
-    // Set the action's inputs as return values from core.getInput()
-    getInputMock.mockImplementation(name => {
-      switch (name) {
-        case 'milliseconds':
-          return '500'
-        default:
-          return ''
-      }
+  test('constructor sets up properties correctly', () => {
+    expect(action.checkInterval).toBe(10)
+    expect(action.approveReaction).toBe('+1')
+    expect(action.rejectReaction).toBe('-1')
+  })
+
+  test('run method handles approval correctly', async () => {
+    mockOctokit.rest.repos.listCommentsForCommit.mockResolvedValue({ data: [] })
+    mockOctokit.rest.repos.createCommitComment.mockResolvedValue({
+      data: { id: 123 }
+    })
+    mockOctokit.rest.reactions.createForCommitComment.mockResolvedValue({
+      data: { id: 456 }
+    })
+    mockOctokit.rest.reactions.listForCommitComment.mockResolvedValue({
+      data: [{ content: '+1', user: { login: 'approver' } }]
+    })
+    mockOctokit.rest.repos.getCollaboratorPermissionLevel.mockResolvedValue({
+      data: { permission: 'write' }
     })
 
-    await main.run()
-    expect(runMock).toHaveReturned()
+    await action.run()
 
-    // Verify that all of the core library functions were called correctly
-    expect(debugMock).toHaveBeenNthCalledWith(1, 'Waiting 500 milliseconds ...')
-    expect(debugMock).toHaveBeenNthCalledWith(
-      2,
-      expect.stringMatching(timeRegex)
-    )
-    expect(debugMock).toHaveBeenNthCalledWith(
-      3,
-      expect.stringMatching(timeRegex)
-    )
-    expect(setOutputMock).toHaveBeenNthCalledWith(
-      1,
-      'time',
-      expect.stringMatching(timeRegex)
-    )
+    expect(core.setOutput).toHaveBeenCalledWith('comment-id', 123)
+    expect(core.setOutput).toHaveBeenCalledWith('approved-by', 'approver')
   })
 
-  it('sets a failed status', async () => {
-    // Set the action's inputs as return values from core.getInput()
-    getInputMock.mockImplementation(name => {
-      switch (name) {
-        case 'milliseconds':
-          return 'this is not a number'
-        default:
-          return ''
-      }
+  test('run method handles rejection correctly', async () => {
+    mockOctokit.rest.repos.listCommentsForCommit.mockResolvedValue({ data: [] })
+    mockOctokit.rest.repos.createCommitComment.mockResolvedValue({
+      data: { id: 123 }
+    })
+    mockOctokit.rest.reactions.createForCommitComment.mockResolvedValue({
+      data: { id: 456 }
+    })
+    mockOctokit.rest.reactions.listForCommitComment.mockResolvedValue({
+      data: [{ content: '-1', user: { login: 'rejector' } }]
+    })
+    mockOctokit.rest.repos.getCollaboratorPermissionLevel.mockResolvedValue({
+      data: { permission: 'write' }
     })
 
-    await main.run()
-    expect(runMock).toHaveReturned()
+    await expect(action.run()).rejects.toThrow('Workflow rejected by rejector')
 
-    // Verify that all of the core library functions were called correctly
-    expect(setFailedMock).toHaveBeenNthCalledWith(
-      1,
-      'milliseconds not a number'
-    )
+    expect(core.setOutput).toHaveBeenCalledWith('comment-id', 123)
+    expect(core.setOutput).toHaveBeenCalledWith('rejected-by', 'rejector')
+    expect(core.setFailed).toHaveBeenCalledWith('Workflow rejected by rejector')
   })
 
-  it('fails if no input is provided', async () => {
-    // Set the action's inputs as return values from core.getInput()
-    getInputMock.mockImplementation(name => {
-      switch (name) {
-        case 'milliseconds':
-          throw new Error('Input required and not supplied: milliseconds')
-        default:
-          return ''
-      }
-    })
-
-    await main.run()
-    expect(runMock).toHaveReturned()
-
-    // Verify that all of the core library functions were called correctly
-    expect(setFailedMock).toHaveBeenNthCalledWith(
-      1,
-      'Input required and not supplied: milliseconds'
-    )
-  })
+  // Add more tests for other methods like findCommitComment, createCommitComment, etc.
 })

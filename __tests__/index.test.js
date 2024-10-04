@@ -1,18 +1,14 @@
-/**
- * Unit tests for the action's entrypoint, src/index.js
- */
+const { action } = require('../src/main')
 
-const { run } = require('../src/main')
-
-// Mock the action's entrypoint
 jest.mock('../src/main', () => ({
-  run: jest.fn()
+  action: {
+    run: jest.fn()
+  }
 }))
 
 describe('index', () => {
-  it('calls run when imported', async () => {
+  test('calls run method of ApprovalAction', () => {
     require('../src/index')
-
-    expect(run).toHaveBeenCalled()
+    expect(action.run).toHaveBeenCalled()
   })
 })
