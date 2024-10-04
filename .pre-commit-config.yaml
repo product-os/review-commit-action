@@ -5,15 +5,12 @@ repos:
     rev: v3.2.0
     hooks:
     -   id: trailing-whitespace
+        exclude: '^dist/'
     -   id: end-of-file-fixer
-        exclude: VERSION
+        exclude: '^dist/'
     -   id: check-yaml
+    -   id: check-json
     -   id: check-added-large-files
-
--   repo: https://github.com/renovatebot/pre-commit-hooks
-    rev: 38.101.0
-    hooks:
-    -   id: renovate-config-validator
 
 -   repo: https://github.com/rhysd/actionlint
     rev: v1.7.3

@@ -1,4 +1,4 @@
-# Review Commit Action
+# Approved Commit Action
 
 This GitHub Action waits for approval from a repository maintainer via a reaction on a commit comment.
 It's designed to be used in pull request workflows where you need manual approval before proceeding with certain actions.
@@ -19,7 +19,7 @@ To use this action in your workflow, add the following step:
   with:
     github-token: ${{ secrets.GITHUB_TOKEN }}
     approve-reaction: '+1'
-    deny-reaction: '-1'
+    reject-reaction: '-1'
     check-interval: '10'
 ```
 
@@ -28,9 +28,15 @@ To use this action in your workflow, add the following step:
 | Input | Description | Required | Default |
 |-------|-------------|----------|---------|
 | `github-token` | GitHub token for authentication | No | `${{ github.token }}` |
-| `approve-reaction` | Reaction to approve | No | `'+1'` |
-| `deny-reaction` | Reaction to deny | No | `'-1'` |
-| `check-interval` | Interval between checks for reactions | No | `'10'` |
+| `check-interval` | Interval in seconds between checks for reactions | No | `'10'` |
+
+### Outputs
+
+| Output | Description |
+|--------|-------------|
+| `comment-id` | `ID of the commit comment` |
+| `approved-by` | `Login of the user who approved the commit` |
+| `rejected-by` | `Login of the user who rejected the commit` |
 
 ## Workflow
 
@@ -51,34 +57,38 @@ on:
   pull_request:
     types: [opened, synchronize, reopened]
 
+permissions: {}
+
 jobs:
   approval-check:
     runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: write
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Wait for Approval
         uses: balena-io-experimental/review-commit-action@v1
+        id: commit-review
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Run after approval
-        run: echo "Approved! Proceeding with the workflow."
+        run: echo "Approved by ${{ steps.commit-review.outputs.approved-by }}! Proceeding with the workflow."
 ```
 
 ## Permissions
 
-This marketplace action is used to create the initial commit comment:
-- https://github.com/marketplace/actions/commit-comment
+This action requires a token with the following permissions:
 
-This GitHub REST endpoint is used to list reactions on the commit comment:
-- https://docs.github.com/en/rest/reactions/reactions?apiVersion=2022-11-28#list-reactions-for-a-commit-comment
-
-This GitHub REST endpoint is used to check the permissions of the user that reacted:
-- https://docs.github.com/en/rest/collaborators/collaborators?apiVersion=2022-11-28#get-repository-permissions-for-a-user
-
-Make sure the token provided to this action has the required permissions for those endpoints.
+- `contents:read`
+- `actions:read`
+- `pull-requests:write`
 
 ## Contributing
 
