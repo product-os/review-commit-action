@@ -1,7 +1,7 @@
 {
   "name": "approved-commit-action",
   "description": "Wait for approval from a repository maintainer on a commit comment",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "author": "",
   "private": true,
   "homepage": "https://github.com/balena-io-experimental/review-commit-action#readme",
@@ -79,5 +79,8 @@
     "jest": "^29.7.0",
     "make-coverage-badge": "^1.2.0",
     "prettier": "^3.3.3"
+  },
+  "versionist": {
+    "publishedAt": "2024-10-04T19:59:24.301Z"
   }
 }

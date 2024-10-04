@@ -1,4 +1,18 @@
 - commits:
+    - subject: Switch to javascript action from template
+      hash: b3bdf102ae2b364ba51008df30ab5b02f4590b08
+      body: ""
+      footer:
+        Change-type: patch
+        change-type: patch
+        Signed-off-by: Kyle Harding <kyle@balena.io>
+        signed-off-by: Kyle Harding <kyle@balena.io>
+      author: Kyle Harding
+      nested: []
+  version: 0.0.3
+  title: ""
+  date: 2024-10-04T19:59:24.263Z
+- commits:
     - subject: "patch: Update README"
       hash: b4ed2547ee9453a4be3f86a1976135025984b6eb
       body: ""
