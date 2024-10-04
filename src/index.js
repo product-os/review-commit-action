@@ -1,6 +1,6 @@
 /**
  * The entrypoint for the action.
  */
-const { run } = require('./main')
+const { action } = require('./main')
 
-run()
+action.run()
