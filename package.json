@@ -35,7 +35,7 @@
     "test": "npx jest && npm run check-dist",
     "all": "npm run format:write && npm run lint && npm run test && npm run coverage && npm run package",
     "prepare": "husky",
-    "check-dist": "npm run bundle && git diff --exit-code dist || { echo 'Files in dist are out-of-date!' ; exit 1 ; }"
+    "check-dist": "npm run bundle && git diff --exit-code dist"
   },
   "license": "Apache-2.0",
   "eslintConfig": {

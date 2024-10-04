@@ -1,5 +1,6 @@
 const core = require('@actions/core')
 const github = require('@actions/github')
+const { CommitComment } = require('./comment')
 
 class ApprovalAction {
   constructor() {
@@ -26,36 +27,42 @@ class ApprovalAction {
 
       const prHeadSha = this.context.payload.pull_request.head.sha
 
-      const existingComment = await this.findCommitComment(prHeadSha)
+      const existingComment = await this.findCommitComment(
+        prHeadSha,
+        this.context.actor
+      )
 
       if (existingComment) {
-        this.commitCommentId = existingComment.id
         core.setOutput('comment-id', existingComment.id)
-        await this.waitForApproval(existingComment.id)
-
-        this.createReaction(existingComment.id, this.successReaction)
-        this.deleteReaction(existingComment.id, this.waitReactionId)
-        return
+        this.commitComment = new CommitComment(
+          existingComment.id,
+          this.octokit,
+          this.context
+        )
       }
 
       const newComment = await this.createCommitComment(prHeadSha)
 
       if (newComment) {
-        this.commitCommentId = newComment.id
         core.setOutput('comment-id', newComment.id)
-        await this.waitForApproval(newComment.id)
-
-        this.createReaction(newComment.id, this.successReaction)
-        this.deleteReaction(newComment.id, this.waitReactionId)
-        return
+        this.commitComment = new CommitComment(
+          newComment.id,
+          this.octokit,
+          this.context
+        )
       }
 
-      throw new Error('Failed to create or find commit comment.')
+      if (!this.commitComment) {
+        throw new Error('Failed to create or find commit comment.')
+      }
+
+      await this.commitComment.setReaction(this.waitReaction)
+      await this.waitForApproval(this.commitComment, this.checkInterval)
+      await this.commitComment.setReaction(this.successReaction)
     } catch (error) {
       core.setFailed(error.message)
-      if (this.commitCommentId) {
-        this.createReaction(this.commitCommentId, this.failedReaction)
-        this.deleteReaction(this.commitCommentId, this.waitReactionId)
+      if (this.commitComment) {
+        await this.commitComment.setReaction(this.failedReaction)
       }
       throw error // Re-throw the error so it can be caught in tests
     }
@@ -65,7 +72,7 @@ class ApprovalAction {
   // - body matches commentBody
   // - created_at matches updated_at
   // - user matches the provided token
-  async findCommitComment(commitSha) {
+  async findCommitComment(commitSha, actor) {
     const { data: comments } =
       await this.octokit.rest.repos.listCommentsForCommit({
         ...this.context.repo,
@@ -77,15 +84,15 @@ class ApprovalAction {
       c =>
         c.body === this.commentBody &&
         c.created_at === c.updated_at &&
-        c.user.login === this.octokit.user.login
+        c.user.login === actor
     )
 
     if (!comment || !comment.id) {
-      core.debug('No matching commit comment found.')
+      core.info('No matching commit comment found.')
       return null
     }
 
-    core.debug(`Found comment with ID: ${comment.id}`)
+    core.info(`Found comment with ID: ${comment.id}`)
     return comment
   }
 
@@ -107,51 +114,15 @@ class ApprovalAction {
     return comment
   }
 
-  // Create a reaction on a comment
-  // https://octokit.github.io/rest.js/v18/#reactions-create-for-commit-comment
-  // https://docs.github.com/en/rest/reactions/reactions?apiVersion=2022-11-28#create-reaction-for-a-commit-comment
-  async createReaction(commentId, content) {
-    const { data: reaction } =
-      await this.octokit.rest.reactions.createForCommitComment({
-        ...this.context.repo,
-        comment_id: commentId,
-        content
-      })
-
-    if (!reaction || !reaction.id) {
-      throw new Error(`Failed to create reaction with content: ${content}`)
-    }
-
-    return reaction
-  }
-
-  // Delete a reaction on a comment
-  // https://octokit.github.io/rest.js/v18/#reactions-delete-for-commit-comment
-  // https://docs.github.com/en/rest/reactions/reactions?apiVersion=2022-11-28#delete-a-commit-comment-reaction
-  async deleteReaction(commentId, reactionId) {
-    await this.octokit.rest.reactions.deleteForCommitComment({
-      ...this.context.repo,
-      comment_id: commentId,
-      reaction_id: reactionId
-    })
-  }
-
   // Wait for approval by checking reactions on a comment
-  async waitForApproval(commentId) {
-    this.waitReactionId = (
-      await this.createReaction(commentId, this.waitReaction)
-    ).id
-
+  async waitForApproval(comment, interval = this.checkInterval) {
     for (;;) {
-      const reactions = await this.getReactions(commentId)
+      const reactions = await comment.getReactionsByPermissions()
 
       const rejectedBy = reactions.find(r => r.content === this.rejectReaction)
         ?.user.login
 
       if (rejectedBy) {
-        // this.createReaction(commentId, this.failedReaction);
-        // this.deleteReaction(commentId, this.waitReactionId);
-
         core.info(`Workflow rejected by ${rejectedBy}`)
         core.setOutput('rejected-by', rejectedBy)
         throw new Error(`Workflow rejected by ${rejectedBy}`)
@@ -161,44 +132,14 @@ class ApprovalAction {
         ?.user.login
 
       if (approvedBy) {
-        // this.createReaction(commentId, this.successReaction);
-        // this.deleteReaction(commentId, this.waitReactionId);
-
         core.info(`Workflow approved by ${approvedBy}`)
         core.setOutput('approved-by', approvedBy)
         return
       }
 
       core.debug('Waiting for approval...')
-      await new Promise(resolve =>
-        setTimeout(resolve, this.checkInterval * 1000)
-      )
+      await new Promise(resolve => setTimeout(resolve, interval * 1000))
     }
-  }
-
-  async getReactions(commentId) {
-    const { data: reactions } =
-      await this.octokit.rest.reactions.listForCommitComment({
-        ...this.context.repo,
-        comment_id: commentId
-      })
-
-    // Filter reactions from non-collaborators by checking permissions
-    const maintainerReactions = reactions.filter(
-      async reaction =>
-        (await this.getUserPermission(reaction.user.login)) !== 'none'
-    )
-
-    return maintainerReactions
-  }
-
-  async getUserPermission(username) {
-    const { data: permissionData } =
-      await this.octokit.rest.repos.getCollaboratorPermissionLevel({
-        ...this.context.repo,
-        username
-      })
-    return permissionData.permission
   }
 }
 
