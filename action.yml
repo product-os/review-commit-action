@@ -3,89 +3,22 @@ description: 'Wait for approval from a repository collaborator via reaction on a
 
 inputs:
   github-token:
-    description: 'GitHub token'
+    description: 'GitHub token for authentication'
     required: false
     default: ${{ github.token }}
-  approve-reaction:
-    description: 'Reaction to approve'
-    required: false
-    default: '+1'
-  deny-reaction:
-    description: 'Reaction to deny'
-    required: false
-    default: '-1'
   check-interval:
     description: 'Interval in seconds between checks for reactions'
     required: false
     default: '10'
 
+outputs:
+  comment-id:
+    description: 'ID of the commit comment'
+  approved-by:
+    description: 'Login of the user who approved the commit'
+  rejected-by:
+    description: 'Login of the user who rejected the commit'
+
 runs:
-  using: "composite"
-  steps:
-    - name: Check for PR HEAD commit
-      shell: bash
-      if: github.event.pull_request.head.sha == ''
-      run: |
-        echo "::error::This action only works on pull requests."
-        exit 1
-
-    - name: Create commit comment
-      if: github.event.pull_request.head.sha
-      uses: peter-evans/commit-comment@v3.0.0
-      id: cc
-      with:
-        token: ${{ inputs.github-token }}
-        sha: ${{ github.event.pull_request.head.sha }}
-        body: |
-          A repository maintainer needs to approve this workflow.
-          React with :${{ inputs.approve-reaction }}: to approve or :${{ inputs.deny-reaction }}: to deny.
-        reactions: eyes
-
-    - name: Check for PR HEAD commit
-      shell: bash
-      if: steps.cc.outputs.comment-id == ''
-      run: |
-        echo "::error::Failed to create commit comment for approval."
-        exit 1
-
-    - name: Wait for approval
-      if: steps.cc.outputs.comment-id
-      env:
-        # environment variables used by gh CLI
-        # https://cli.github.com/manual/gh_help_environment
-        GH_DEBUG: true
-        GH_PAGER: cat
-        GH_PROMPT_DISABLED: true
-        GH_TOKEN: ${{ inputs.github-token }}
-      shell: bash
-      run: |
-        while true; do
-          reactions=$(gh api \
-            -H "Accept: application/vnd.github+json" \
-            -H "X-GitHub-Api-Version: 2022-11-28" \
-            "/repos/${{ github.repository }}/comments/${{ steps.cc.outputs.comment-id }}/reactions")
-
-          approve_count=$(echo "$reactions" | jq "[.[] | select(.content == \"${{ inputs.approve-reaction }}\")] | length")
-          deny_count=$(echo "$reactions" | jq "[.[] | select(.content == \"${{ inputs.deny-reaction }}\")] | length")
-
-          if [ ${approve_count} -gt 0 ] || [ $deny_count -gt 0 ]; then
-            user=$(echo "$reactions" | jq -r ".[] | select(.content == \"${{ inputs.approve-reaction }}\" or .content == \"${{ inputs.deny-reaction }}\") | .user.login" | head -n1)
-
-            permission=$(gh api \
-              -H "Accept: application/vnd.github+json" \
-              -H "X-GitHub-Api-Version: 2022-11-28" \
-              "/repos/${{ github.repository }}/collaborators/${user}/permission" | jq -r .permission)
-
-            if [[ "${permission}" == "admin" || "${permission}" == "write" ]]; then
-              if [ ${approve_count} -gt 0 ]; then
-                echo "::debug::Workflow approved by $user"
-                exit 0
-              elif [ $deny_count -gt 0 ]; then
-                echo "::warning::Workflow denied by $user"
-                exit 1
-              fi
-            fi
-          fi
-
-          sleep "${{ inputs.check-interval }}"
-        done
+  using: 'node20'
+  main: 'index.js'
