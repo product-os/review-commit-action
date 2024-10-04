@@ -1,4 +1,4 @@
-# Review Commit Action
+# Approved Commit Action
 
 This GitHub Action waits for approval from a repository maintainer via a reaction on a commit comment.
 It's designed to be used in pull request workflows where you need manual approval before proceeding with certain actions.

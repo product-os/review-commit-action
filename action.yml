@@ -1,5 +1,6 @@
-name: 'Review Commit Action'
-description: 'Wait for approval from a repository collaborator via reaction on a commit comment'
+name: 'Approved Commit Action'
+description: 'Wait for approval from a repository maintainer on a commit comment'
+author: 'Balena <hello@balena.io>'
 
 inputs:
   github-token:
@@ -21,4 +22,4 @@ outputs:
 
 runs:
   using: 'node20'
-  main: 'index.js'
+  main: dist/index.js
