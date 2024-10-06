@@ -85,8 +85,8 @@ class CommitComment {
     return filtered
   }
 
-  async removeReactionsByUser(userId) {
-    const actorReactions = await this.getReactionsByUser(userId)
+  async removeReactionsByUser(id) {
+    const actorReactions = await this.getReactionsByUser(id)
     for (const reaction of actorReactions) {
       this.deleteReaction(reaction.id)
     }
@@ -94,7 +94,7 @@ class CommitComment {
 
   // Set a single reaction on a comment, removing other reactions by this actor
   async setReaction(content) {
-    await this.removeReactionsByUser(this.user.id)
+    await this.removeReactionsByUser(this.user.databaseId)
     return this.createReaction(content)
   }
 }

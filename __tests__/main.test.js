@@ -20,11 +20,9 @@ describe('ApprovalAction', () => {
         createForCommitComment: jest.fn(),
         deleteForCommitComment: jest.fn(),
         listForCommitComment: jest.fn()
-      },
-      users: {
-        getAuthenticated: jest.fn()
       }
-    }
+    },
+    graphql: jest.fn()
   }
 
   beforeEach(() => {
@@ -58,42 +56,21 @@ describe('ApprovalAction', () => {
     expect(action.failedReaction).toBe('confused')
   })
 
-  test('getAuthenticatedUser returns user information', async () => {
-    const mockUser = { login: 'test-user', id: 12345 }
-    mockOctokit.rest.users.getAuthenticated.mockResolvedValue({
-      data: mockUser
-    })
+  test('getAuthenticatedUser returns correct user info', async () => {
+    const mockUser = { databaseId: 12345, login: 'test-user' }
+    mockOctokit.graphql.mockResolvedValue({ viewer: mockUser })
 
     const result = await action.getAuthenticatedUser()
+
     expect(result).toEqual(mockUser)
-    expect(mockOctokit.rest.users.getAuthenticated).toHaveBeenCalled()
-  })
-
-  test('run method uses authenticated user', async () => {
-    const mockUser = { login: 'test-user', id: 12345 }
-    mockOctokit.rest.users.getAuthenticated.mockResolvedValue({
-      data: mockUser
-    })
-    mockOctokit.rest.repos.listCommentsForCommit.mockResolvedValue({ data: [] })
-    mockOctokit.rest.repos.createCommitComment.mockResolvedValue({
-      data: { id: 123 }
-    })
-    CommitComment.prototype.setReaction.mockResolvedValue({})
-    CommitComment.prototype.getReactionsByPermissions.mockResolvedValue([
-      { content: '+1', user: { login: 'approver' } }
-    ])
-
-    await action.run()
-
-    expect(mockOctokit.rest.users.getAuthenticated).toHaveBeenCalled()
-    expect(mockOctokit.rest.repos.listCommentsForCommit).toHaveBeenCalledWith(
-      expect.objectContaining({
-        commit_sha: 'test-sha'
-      })
+    expect(mockOctokit.graphql).toHaveBeenCalledWith(
+      expect.stringContaining('query { viewer { databaseId login } }')
     )
   })
 
   test('run method handles approval correctly', async () => {
+    const mockUser = { databaseId: 12345, login: 'test-user' }
+    mockOctokit.graphql.mockResolvedValue({ viewer: mockUser })
     mockOctokit.rest.repos.listCommentsForCommit.mockResolvedValue({ data: [] })
     mockOctokit.rest.repos.createCommitComment.mockResolvedValue({
       data: { id: 123 }

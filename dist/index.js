@@ -29996,8 +29996,8 @@ class CommitComment {
     return filtered
   }
 
-  async removeReactionsByUser(userId) {
-    const actorReactions = await this.getReactionsByUser(userId)
+  async removeReactionsByUser(id) {
+    const actorReactions = await this.getReactionsByUser(id)
     for (const reaction of actorReactions) {
       this.deleteReaction(reaction.id)
     }
@@ -30005,7 +30005,7 @@ class CommitComment {
 
   // Set a single reaction on a comment, removing other reactions by this actor
   async setReaction(content) {
-    await this.removeReactionsByUser(this.user.id)
+    await this.removeReactionsByUser(this.user.databaseId)
     return this.createReaction(content)
   }
 }
@@ -30044,10 +30044,11 @@ class ApprovalAction {
 
   async getAuthenticatedUser() {
     try {
-      const { data: user } = await this.octokit.rest.users.getAuthenticated()
-      return user
+      const query = `query { viewer { databaseId login } }`
+      const { viewer } = await this.octokit.graphql(query)
+      return viewer
     } catch (error) {
-      core.error('Error fetching authenticated user:', error)
+      core.error(`Failed to get authenticated user: ${error.message}`)
       throw error
     }
   }
@@ -30061,12 +30062,8 @@ class ApprovalAction {
       const prHeadSha = this.context.payload.pull_request.head.sha
 
       const tokenUser = await this.getAuthenticatedUser()
-      core.info(`Authenticated as: ${tokenUser.login}`)
 
-      const existingComment = await this.findCommitComment(
-        prHeadSha,
-        tokenUser.id
-      )
+      const existingComment = await this.findCommitComment(prHeadSha, tokenUser)
 
       if (existingComment) {
         core.setOutput('comment-id', existingComment.id)
