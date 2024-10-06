@@ -30027,6 +30027,7 @@ class ApprovalAction {
   constructor() {
     this.token = core.getInput('github-token')
     this.checkInterval = parseInt(core.getInput('check-interval')) || 10
+    this.timeoutSeconds = parseInt(core.getInput('timeout-seconds')) || 0 // 0 means no timeout
 
     // https://docs.github.com/en/rest/reactions/reactions?apiVersion=2022-11-28#about-reactions
     this.approveReaction = '+1'
@@ -30137,7 +30138,15 @@ class ApprovalAction {
 
   // Wait for approval by checking reactions on a comment
   async waitForApproval(comment, interval = this.checkInterval) {
+    const startTime = Date.now()
     for (;;) {
+      if (
+        this.timeoutSeconds > 0 &&
+        (Date.now() - startTime) / 1000 > this.timeoutSeconds
+      ) {
+        throw new Error('Approval process timed out')
+      }
+
       const reactions = await comment.getReactionsByPermissions()
 
       const rejectedBy = reactions.find(r => r.content === this.rejectReaction)
