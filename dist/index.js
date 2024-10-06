@@ -29910,10 +29910,11 @@ function wrappy (fn, cb) {
 /***/ ((module) => {
 
 class CommitComment {
-  constructor(commentId, octokit, context) {
-    this.id = commentId
+  constructor(id, octokit, context, user) {
+    this.id = id
     this.octokit = octokit
     this.context = context
+    this.user = user
   }
 
   getCommentId() {
@@ -29982,12 +29983,12 @@ class CommitComment {
     return filtered
   }
 
-  async getReactionsByActor(actor) {
+  async getReactionsByUser(id) {
     const reactions = await this.getReactions()
     const filtered = []
 
     for (const reaction of reactions) {
-      if (reaction.user.login === actor) {
+      if (reaction.user.id === id) {
         filtered.push(reaction)
       }
     }
@@ -29995,8 +29996,8 @@ class CommitComment {
     return filtered
   }
 
-  async removeReactionsByActor(actor) {
-    const actorReactions = await this.getReactionsByActor(actor)
+  async removeReactionsByUser(userId) {
+    const actorReactions = await this.getReactionsByUser(userId)
     for (const reaction of actorReactions) {
       this.deleteReaction(reaction.id)
     }
@@ -30004,7 +30005,7 @@ class CommitComment {
 
   // Set a single reaction on a comment, removing other reactions by this actor
   async setReaction(content) {
-    await this.removeReactionsByActor(this.context.actor)
+    await this.removeReactionsByUser(this.user.id)
     return this.createReaction(content)
   }
 }
@@ -30041,6 +30042,16 @@ class ApprovalAction {
     this.context = github.context
   }
 
+  async getAuthenticatedUser() {
+    try {
+      const { data: user } = await this.octokit.rest.users.getAuthenticated()
+      return user
+    } catch (error) {
+      core.error('Error fetching authenticated user:', error)
+      throw error
+    }
+  }
+
   async run() {
     try {
       if (!this.context.payload.pull_request) {
@@ -30049,9 +30060,12 @@ class ApprovalAction {
 
       const prHeadSha = this.context.payload.pull_request.head.sha
 
+      const tokenUser = await this.getAuthenticatedUser()
+      core.info(`Authenticated as: ${tokenUser.login}`)
+
       const existingComment = await this.findCommitComment(
         prHeadSha,
-        this.context.actor
+        tokenUser.id
       )
 
       if (existingComment) {
@@ -30059,7 +30073,8 @@ class ApprovalAction {
         this.commitComment = new CommitComment(
           existingComment.id,
           this.octokit,
-          this.context
+          this.context,
+          tokenUser
         )
       }
 
@@ -30070,7 +30085,8 @@ class ApprovalAction {
         this.commitComment = new CommitComment(
           newComment.id,
           this.octokit,
-          this.context
+          this.context,
+          tokenUser
         )
       }
 
@@ -30082,10 +30098,10 @@ class ApprovalAction {
       await this.waitForApproval(this.commitComment, this.checkInterval)
       await this.commitComment.setReaction(this.successReaction)
     } catch (error) {
-      core.setFailed(error.message)
       if (this.commitComment) {
         await this.commitComment.setReaction(this.failedReaction)
       }
+      core.setFailed(error.message)
       throw error // Re-throw the error so it can be caught in tests
     }
   }
@@ -30094,7 +30110,7 @@ class ApprovalAction {
   // - body matches commentBody
   // - created_at matches updated_at
   // - user matches the provided token
-  async findCommitComment(commitSha, actor) {
+  async findCommitComment(commitSha, userId) {
     const { data: comments } =
       await this.octokit.rest.repos.listCommentsForCommit({
         ...this.context.repo,
@@ -30106,7 +30122,7 @@ class ApprovalAction {
       c =>
         c.body === this.commentBody &&
         c.created_at === c.updated_at &&
-        c.user.login === actor
+        c.user.id === userId
     )
 
     if (!comment || !comment.id) {

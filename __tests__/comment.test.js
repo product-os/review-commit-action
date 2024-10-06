@@ -14,6 +14,9 @@ describe('CommitComment', () => {
       },
       repos: {
         getCollaboratorPermissionLevel: jest.fn()
+      },
+      users: {
+        getAuthenticated: jest.fn()
       }
     }
   }
@@ -25,7 +28,10 @@ describe('CommitComment', () => {
       repo: { owner: 'test-owner', repo: 'test-repo' },
       actor: 'test-actor'
     }
-    comment = new CommitComment(123, mockOctokit, github.context)
+    comment = new CommitComment(123, mockOctokit, github.context, {
+      id: 1,
+      login: 'test-login'
+    })
   })
 
   test('getCommentId returns the correct id', () => {
@@ -116,31 +122,31 @@ describe('CommitComment', () => {
     expect(result).toEqual([mockReactions[1], mockReactions[2]])
   })
 
-  test('getReactionsByActor filters reactions by actor', async () => {
+  test('getReactionsByUser filters reactions by user ID', async () => {
     const mockReactions = [
-      { id: 1, user: { login: 'test-actor' } },
-      { id: 2, user: { login: 'other-user' } },
-      { id: 3, user: { login: 'test-actor' } }
+      { id: 1, user: { id: 1, login: 'test-login' } },
+      { id: 2, user: { id: 2, login: 'other-user' } },
+      { id: 3, user: { id: 1, login: 'test-login' } }
     ]
     mockOctokit.rest.reactions.listForCommitComment.mockResolvedValue({
       data: mockReactions
     })
 
-    const result = await comment.getReactionsByActor('test-actor')
+    const result = await comment.getReactionsByUser(1)
     expect(result).toEqual([mockReactions[0], mockReactions[2]])
   })
 
-  test('removeReactionsByActor removes reactions by actor', async () => {
+  test('removeReactionsByUser removes reactions by user ID', async () => {
     const mockReactions = [
-      { id: 1, user: { login: 'test-actor' } },
-      { id: 2, user: { login: 'other-user' } },
-      { id: 3, user: { login: 'test-actor' } }
+      { id: 1, user: { id: 1, login: 'test-login' } },
+      { id: 2, user: { id: 2, login: 'other-user' } },
+      { id: 3, user: { id: 1, login: 'test-login' } }
     ]
     mockOctokit.rest.reactions.listForCommitComment.mockResolvedValue({
       data: mockReactions
     })
 
-    await comment.removeReactionsByActor('test-actor')
+    await comment.removeReactionsByUser(1)
     expect(
       mockOctokit.rest.reactions.deleteForCommitComment
     ).toHaveBeenCalledTimes(2)
@@ -164,8 +170,9 @@ describe('CommitComment', () => {
 
   test('setReaction removes existing reactions and creates a new one', async () => {
     const mockReactions = [
-      { id: 1, user: { login: 'test-actor' } },
-      { id: 2, user: { login: 'test-actor' } }
+      { id: 1, user: { id: 1, login: 'test-login' } },
+      { id: 2, user: { id: 2, login: 'other-user' } },
+      { id: 3, user: { id: 1, login: 'test-login' } }
     ]
     mockOctokit.rest.reactions.listForCommitComment.mockResolvedValue({
       data: mockReactions

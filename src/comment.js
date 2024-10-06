@@ -1,8 +1,9 @@
 class CommitComment {
-  constructor(commentId, octokit, context) {
-    this.id = commentId
+  constructor(id, octokit, context, user) {
+    this.id = id
     this.octokit = octokit
     this.context = context
+    this.user = user
   }
 
   getCommentId() {
@@ -71,12 +72,12 @@ class CommitComment {
     return filtered
   }
 
-  async getReactionsByActor(actor) {
+  async getReactionsByUser(id) {
     const reactions = await this.getReactions()
     const filtered = []
 
     for (const reaction of reactions) {
-      if (reaction.user.login === actor) {
+      if (reaction.user.id === id) {
         filtered.push(reaction)
       }
     }
@@ -84,8 +85,8 @@ class CommitComment {
     return filtered
   }
 
-  async removeReactionsByActor(actor) {
-    const actorReactions = await this.getReactionsByActor(actor)
+  async removeReactionsByUser(userId) {
+    const actorReactions = await this.getReactionsByUser(userId)
     for (const reaction of actorReactions) {
       this.deleteReaction(reaction.id)
     }
@@ -93,7 +94,7 @@ class CommitComment {
 
   // Set a single reaction on a comment, removing other reactions by this actor
   async setReaction(content) {
-    await this.removeReactionsByActor(this.context.actor)
+    await this.removeReactionsByUser(this.user.id)
     return this.createReaction(content)
   }
 }

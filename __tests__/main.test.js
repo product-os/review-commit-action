@@ -20,6 +20,9 @@ describe('ApprovalAction', () => {
         createForCommitComment: jest.fn(),
         deleteForCommitComment: jest.fn(),
         listForCommitComment: jest.fn()
+      },
+      users: {
+        getAuthenticated: jest.fn()
       }
     }
   }
@@ -53,6 +56,41 @@ describe('ApprovalAction', () => {
     expect(action.waitReaction).toBe('eyes')
     expect(action.successReaction).toBe('rocket')
     expect(action.failedReaction).toBe('confused')
+  })
+
+  test('getAuthenticatedUser returns user information', async () => {
+    const mockUser = { login: 'test-user', id: 12345 }
+    mockOctokit.rest.users.getAuthenticated.mockResolvedValue({
+      data: mockUser
+    })
+
+    const result = await action.getAuthenticatedUser()
+    expect(result).toEqual(mockUser)
+    expect(mockOctokit.rest.users.getAuthenticated).toHaveBeenCalled()
+  })
+
+  test('run method uses authenticated user', async () => {
+    const mockUser = { login: 'test-user', id: 12345 }
+    mockOctokit.rest.users.getAuthenticated.mockResolvedValue({
+      data: mockUser
+    })
+    mockOctokit.rest.repos.listCommentsForCommit.mockResolvedValue({ data: [] })
+    mockOctokit.rest.repos.createCommitComment.mockResolvedValue({
+      data: { id: 123 }
+    })
+    CommitComment.prototype.setReaction.mockResolvedValue({})
+    CommitComment.prototype.getReactionsByPermissions.mockResolvedValue([
+      { content: '+1', user: { login: 'approver' } }
+    ])
+
+    await action.run()
+
+    expect(mockOctokit.rest.users.getAuthenticated).toHaveBeenCalled()
+    expect(mockOctokit.rest.repos.listCommentsForCommit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        commit_sha: 'test-sha'
+      })
+    )
   })
 
   test('run method handles approval correctly', async () => {
@@ -106,13 +144,13 @@ describe('ApprovalAction', () => {
       body: action.commentBody,
       created_at: '2023-01-01T00:00:00Z',
       updated_at: '2023-01-01T00:00:00Z',
-      user: { login: 'test-actor' }
+      user: { id: 1, login: 'test-login' }
     }
     mockOctokit.rest.repos.listCommentsForCommit.mockResolvedValue({
       data: [mockComment]
     })
 
-    const result = await action.findCommitComment('test-sha', 'test-actor')
+    const result = await action.findCommitComment('test-sha', 1)
     expect(result).toEqual(mockComment)
   })
 
