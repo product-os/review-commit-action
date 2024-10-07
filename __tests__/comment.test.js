@@ -1,54 +1,44 @@
 const { CommitComment } = require('../src/comment')
-const github = require('@actions/github')
-
-jest.mock('@actions/github')
 
 describe('CommitComment', () => {
   let comment
-  const mockOctokit = {
-    rest: {
-      reactions: {
-        createForCommitComment: jest.fn(),
-        deleteForCommitComment: jest.fn(),
-        listForCommitComment: jest.fn()
-      },
-      repos: {
-        getCollaboratorPermissionLevel: jest.fn()
-      }
-    },
-    graphql: jest.fn()
-  }
+  let mockOctokit
+  let mockContext
 
   beforeEach(() => {
-    jest.clearAllMocks()
-    github.getOctokit.mockReturnValue(mockOctokit)
-    github.context = {
-      repo: { owner: 'test-owner', repo: 'test-repo' },
-      actor: 'test-actor'
+    mockOctokit = {
+      rest: {
+        reactions: {
+          createForCommitComment: jest.fn(),
+          deleteForCommitComment: jest.fn(),
+          listForCommitComment: jest.fn()
+        }
+      }
     }
-    comment = new CommitComment(123, mockOctokit, github.context, {
-      databaseId: 12345,
-      login: 'test-login'
-    })
+    mockContext = {
+      repo: { owner: 'test-owner', repo: 'test-repo' }
+    }
+    comment = new CommitComment(1, mockOctokit, mockContext)
   })
 
-  test('getCommentId returns the correct id', () => {
-    expect(comment.getCommentId()).toBe(123)
+  test('getCommentId returns correct id', () => {
+    expect(comment.getCommentId()).toBe(1)
   })
 
-  test('createReaction creates a reaction successfully', async () => {
+  test('createReaction creates a reaction', async () => {
+    const mockReaction = { id: 1, content: '+1' }
     mockOctokit.rest.reactions.createForCommitComment.mockResolvedValue({
-      data: { id: 456 }
+      data: mockReaction
     })
 
     const result = await comment.createReaction('+1')
-    expect(result).toEqual({ id: 456 })
+    expect(result).toEqual(mockReaction)
     expect(
       mockOctokit.rest.reactions.createForCommitComment
     ).toHaveBeenCalledWith({
       owner: 'test-owner',
       repo: 'test-repo',
-      comment_id: 123,
+      comment_id: 1,
       content: '+1'
     })
   })
@@ -64,132 +54,34 @@ describe('CommitComment', () => {
   })
 
   test('deleteReaction deletes a reaction', async () => {
-    await comment.deleteReaction(789)
+    await comment.deleteReaction(1)
     expect(
       mockOctokit.rest.reactions.deleteForCommitComment
     ).toHaveBeenCalledWith({
       owner: 'test-owner',
       repo: 'test-repo',
-      comment_id: 123,
-      reaction_id: 789
+      comment_id: 1,
+      reaction_id: 1
     })
   })
 
-  test('getReactions returns list of reactions', async () => {
-    const mockReactions = [{ id: 1 }, { id: 2 }]
+  test('getReactions returns reactions', async () => {
+    const mockReactions = [
+      { id: 1, content: '+1' },
+      { id: 2, content: '-1' }
+    ]
     mockOctokit.rest.reactions.listForCommitComment.mockResolvedValue({
       data: mockReactions
     })
 
     const result = await comment.getReactions()
     expect(result).toEqual(mockReactions)
-  })
-
-  test('getUserPermission returns user permission', async () => {
-    mockOctokit.rest.repos.getCollaboratorPermissionLevel.mockResolvedValue({
-      data: { permission: 'write' }
-    })
-
-    const result = await comment.getUserPermission('test-user')
-    expect(result).toBe('write')
-  })
-
-  test('getReactionsByPermissions filters reactions by permissions', async () => {
-    const mockReactions = [
-      { id: 1, user: { login: 'user1' } },
-      { id: 2, user: { login: 'user2' } },
-      { id: 3, user: { login: 'user3' } }
-    ]
-    mockOctokit.rest.reactions.listForCommitComment.mockResolvedValue({
-      data: mockReactions
-    })
-    mockOctokit.rest.repos.getCollaboratorPermissionLevel.mockImplementation(
-      params => {
-        const permissions = {
-          user1: 'read',
-          user2: 'write',
-          user3: 'admin'
-        }
-        return Promise.resolve({
-          data: { permission: permissions[params.username] }
-        })
-      }
-    )
-
-    const result = await comment.getReactionsByPermissions(['write', 'admin'])
-    expect(result).toEqual([mockReactions[1], mockReactions[2]])
-  })
-
-  test('getReactionsByUser filters reactions by user', async () => {
-    const mockReactions = [
-      { id: 1, user: { id: 12345, login: 'test-login' } },
-      { id: 2, user: { id: 54321, login: 'other-user' } },
-      { id: 3, user: { id: 12345, login: 'test-login' } }
-    ]
-    mockOctokit.rest.reactions.listForCommitComment.mockResolvedValue({
-      data: mockReactions
-    })
-
-    const result = await comment.getReactionsByUser(12345)
-    expect(result).toEqual([mockReactions[0], mockReactions[2]])
-  })
-
-  test('removeReactionsByUser removes reactions by user', async () => {
-    const mockReactions = [
-      { id: 1, user: { id: 12345, login: 'test-login' } },
-      { id: 2, user: { id: 54321, login: 'other-user' } },
-      { id: 3, user: { id: 12345, login: 'test-login' } }
-    ]
-    mockOctokit.rest.reactions.listForCommitComment.mockResolvedValue({
-      data: mockReactions
-    })
-
-    await comment.removeReactionsByUser(12345)
     expect(
-      mockOctokit.rest.reactions.deleteForCommitComment
-    ).toHaveBeenCalledTimes(2)
-    expect(
-      mockOctokit.rest.reactions.deleteForCommitComment
+      mockOctokit.rest.reactions.listForCommitComment
     ).toHaveBeenCalledWith({
       owner: 'test-owner',
       repo: 'test-repo',
-      comment_id: 123,
-      reaction_id: 1
-    })
-    expect(
-      mockOctokit.rest.reactions.deleteForCommitComment
-    ).toHaveBeenCalledWith({
-      owner: 'test-owner',
-      repo: 'test-repo',
-      comment_id: 123,
-      reaction_id: 3
-    })
-  })
-
-  test('setReaction removes existing reactions and creates a new one', async () => {
-    const mockReactions = [
-      { id: 1, user: { id: 12345, login: 'test-login' } },
-      { id: 2, user: { id: 54321, login: 'other-user' } },
-      { id: 3, user: { id: 12345, login: 'test-login' } }
-    ]
-    mockOctokit.rest.reactions.listForCommitComment.mockResolvedValue({
-      data: mockReactions
-    })
-    mockOctokit.rest.reactions.createForCommitComment.mockResolvedValue({
-      data: { id: 3 }
-    })
-
-    await comment.setReaction('+1')
-    expect(
-      mockOctokit.rest.reactions.deleteForCommitComment
-    ).toHaveBeenCalledTimes(2)
-    expect(
-      mockOctokit.rest.reactions.createForCommitComment
-    ).toHaveBeenCalledWith({
-      owner: 'test-owner',
-      repo: 'test-repo',
-      comment_id: 123,
-      content: '+1'
+      comment_id: 1
     })
   })
 })

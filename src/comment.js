@@ -1,9 +1,8 @@
 class CommitComment {
-  constructor(id, octokit, context, user) {
+  constructor(id, octokit, context) {
     this.id = id
     this.octokit = octokit
     this.context = context
-    this.user = user
   }
 
   getCommentId() {
@@ -46,56 +45,6 @@ class CommitComment {
         comment_id: this.id
       })
     return reactions
-  }
-
-  async getUserPermission(username) {
-    const { data: permissionData } =
-      await this.octokit.rest.repos.getCollaboratorPermissionLevel({
-        ...this.context.repo,
-        username
-      })
-    return permissionData.permission
-  }
-
-  async getReactionsByPermissions(permissions = ['write', 'admin']) {
-    const reactions = await this.getReactions()
-    const filtered = []
-
-    for (const reaction of reactions) {
-      // TODO: exclude commit author(s) from maintainer reactions
-      const permission = await this.getUserPermission(reaction.user.login)
-      if (permissions.includes(permission)) {
-        filtered.push(reaction)
-      }
-    }
-
-    return filtered
-  }
-
-  async getReactionsByUser(id) {
-    const reactions = await this.getReactions()
-    const filtered = []
-
-    for (const reaction of reactions) {
-      if (reaction.user.id === id) {
-        filtered.push(reaction)
-      }
-    }
-
-    return filtered
-  }
-
-  async removeReactionsByUser(id) {
-    const actorReactions = await this.getReactionsByUser(id)
-    for (const reaction of actorReactions) {
-      this.deleteReaction(reaction.id)
-    }
-  }
-
-  // Set a single reaction on a comment, removing other reactions by this actor
-  async setReaction(content) {
-    await this.removeReactionsByUser(this.user.databaseId)
-    return this.createReaction(content)
   }
 }
 

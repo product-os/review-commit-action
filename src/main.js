@@ -39,17 +39,19 @@ class ApprovalAction {
 
       const prHeadSha = this.context.payload.pull_request.head.sha
 
-      const tokenUser = await this.getAuthenticatedUser()
+      this.tokenUser = await this.getAuthenticatedUser()
 
-      const existingComment = await this.findCommitComment(prHeadSha, tokenUser)
+      const existingComment = await this.findCommitComment(
+        prHeadSha,
+        this.tokenUser
+      )
 
       if (existingComment) {
         core.setOutput('comment-id', existingComment.id)
         this.commitComment = new CommitComment(
           existingComment.id,
           this.octokit,
-          this.context,
-          tokenUser
+          this.context
         )
       }
 
@@ -60,8 +62,7 @@ class ApprovalAction {
         this.commitComment = new CommitComment(
           newComment.id,
           this.octokit,
-          this.context,
-          tokenUser
+          this.context
         )
       }
 
@@ -69,13 +70,11 @@ class ApprovalAction {
         throw new Error('Failed to create or find commit comment.')
       }
 
-      await this.commitComment.setReaction(this.waitReaction)
+      await this.setReaction(this.waitReaction)
       await this.waitForApproval(this.commitComment, this.checkInterval)
-      await this.commitComment.setReaction(this.successReaction)
+      await this.setReaction(this.successReaction)
     } catch (error) {
-      if (this.commitComment) {
-        await this.commitComment.setReaction(this.failedReaction)
-      }
+      await this.setReaction(this.failedReaction)
       core.setFailed(error.message)
       throw error // Re-throw the error so it can be caught in tests
     }
@@ -128,7 +127,7 @@ class ApprovalAction {
   }
 
   // Wait for approval by checking reactions on a comment
-  async waitForApproval(comment, interval = this.checkInterval) {
+  async waitForApproval(interval = this.checkInterval) {
     const startTime = Date.now()
     for (;;) {
       if (
@@ -138,7 +137,7 @@ class ApprovalAction {
         throw new Error('Approval process timed out')
       }
 
-      const reactions = await comment.getReactionsByPermissions()
+      const reactions = await this.getReactionsByPermissions()
 
       const rejectedBy = reactions.find(r => r.content === this.rejectReaction)
         ?.user.login
@@ -161,6 +160,67 @@ class ApprovalAction {
       core.debug('Waiting for approval...')
       await new Promise(resolve => setTimeout(resolve, interval * 1000))
     }
+  }
+
+  async getUserPermission(username) {
+    const { data: permissionData } =
+      await this.octokit.rest.repos.getCollaboratorPermissionLevel({
+        ...this.context.repo,
+        username
+      })
+    return permissionData.permission
+  }
+
+  async getReactionsByPermissions(permissions = ['write', 'admin']) {
+    if (!this.commitComment) {
+      core.debug('Unable to get reactions: commit comment not found.')
+      console.error('Unable to get reactions: commit comment not found.')
+      return []
+    }
+    const reactions = await this.commitComment.getReactions()
+    const filtered = []
+
+    for (const reaction of reactions) {
+      // TODO: exclude commit author(s) from maintainer reactions
+      const permission = await this.getUserPermission(reaction.user.login)
+      if (permissions.includes(permission)) {
+        filtered.push(reaction)
+      }
+    }
+
+    return filtered
+  }
+
+  async getReactionsByUser(id) {
+    const reactions = await this.commitComment.getReactions()
+    const filtered = []
+
+    for (const reaction of reactions) {
+      if (reaction.user.id === id) {
+        filtered.push(reaction)
+      }
+    }
+
+    return filtered
+  }
+
+  async removeReactionsByUser(id) {
+    const actorReactions = await this.getReactionsByUser(id)
+    for (const reaction of actorReactions) {
+      this.commitComment.deleteReaction(reaction.id)
+    }
+  }
+
+  // Set a single reaction on a comment, removing other reactions by this actor
+  async setReaction(content) {
+    if (!this.commitComment) {
+      core.debug('Unable to set reaction: commit comment not found.')
+      return
+    }
+    if (this.tokenUser) {
+      await this.removeReactionsByUser(this.tokenUser.databaseId)
+    }
+    return this.commitComment.createReaction(content)
   }
 }
 
