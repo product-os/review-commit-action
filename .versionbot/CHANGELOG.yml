@@ -1,4 +1,28 @@
 - commits:
+    - subject: Fix mismatch when filtering reactions by login user
+      hash: d8c3287090718e56f62b8db66ea3330ffb996a58
+      body: ""
+      footer:
+        Change-type: patch
+        change-type: patch
+        Signed-off-by: Kyle Harding <kyle@balena.io>
+        signed-off-by: Kyle Harding <kyle@balena.io>
+      author: Kyle Harding
+      nested: []
+    - subject: Setup husky hooks to check bundle generated files
+      hash: 8aafcb666d91f244e0e50f67a295b93553e7470c
+      body: ""
+      footer:
+        Change-type: patch
+        change-type: patch
+        Signed-off-by: Kyle Harding <kyle@balena.io>
+        signed-off-by: Kyle Harding <kyle@balena.io>
+      author: Kyle Harding
+      nested: []
+  version: 0.0.4
+  title: ""
+  date: 2024-10-07T02:02:54.803Z
+- commits:
     - subject: Switch to javascript action from template
       hash: b3bdf102ae2b364ba51008df30ab5b02f4590b08
       body: ""
