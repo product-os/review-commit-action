@@ -15,7 +15,8 @@ class ApprovalAction {
     this.successReaction = 'rocket'
     this.failedReaction = 'confused'
 
-    this.commentBody = `A repository maintainer needs to approve this workflow.\nReact with :${this.approveReaction}: to approve or :${this.rejectReaction}: to reject.`
+    this.commentHeader = `A repository maintainer needs to approve this workflow.`
+    this.commentBody = `${this.commentHeader}\n\nReact with :${this.approveReaction}: to approve or :${this.rejectReaction}: to reject.`
     this.octokit = github.getOctokit(this.token)
     this.context = github.context
   }
@@ -51,6 +52,7 @@ class ApprovalAction {
         core.setOutput('comment-id', existingComment.id)
         this.commitComment = new CommitComment(
           existingComment.id,
+          existingComment.url,
           this.octokit,
           this.context
         )
@@ -63,6 +65,7 @@ class ApprovalAction {
           core.setOutput('comment-id', newComment.id)
           this.commitComment = new CommitComment(
             newComment.id,
+            newComment.url,
             this.octokit,
             this.context
           )
@@ -74,6 +77,7 @@ class ApprovalAction {
       }
 
       await this.setReaction(this.waitReaction)
+      await this.resetPRComment(this.commentHeader, this.commitComment.url)
       await this.waitForApproval(this.commitComment, this.checkInterval)
       await this.setReaction(this.successReaction)
     } catch (error) {
@@ -83,7 +87,7 @@ class ApprovalAction {
     }
   }
 
-  // Find existing commit comments with the following criteria:
+  // Find existing commit comment with the following criteria:
   // - body matches commentBody
   // - created_at matches updated_at
   // - user matches the provided token
@@ -105,17 +109,41 @@ class ApprovalAction {
       return null
     }
 
-    core.info(`Found comment with ID: ${comment.id}`)
+    core.info(`Found existing commit comment: ${comment.url}`)
+    return comment
+  }
+
+  // Find existing PR comment with the following criteria:
+  // - body matches commentBody
+  // - created_at matches updated_at
+  // - user matches the provided token
+  async findPrComment(userId, body) {
+    const { data: comments } = await this.octokit.rest.issues.listComments({
+      ...this.context.repo,
+      issue_number: this.context.payload.pull_request.number
+    })
+
+    const comment = comments.find(
+      c =>
+        c.body === body && c.user.id === userId && c.created_at === c.updated_at
+    )
+
+    if (!comment || !comment.id) {
+      core.info('No matching PR comment found.')
+      return null
+    }
+
+    core.info(`Found existing PR comment: ${comment.url}`)
     return comment
   }
 
   // Create a new commit comment with the provided commentBody
-  async createCommitComment(commitSha) {
+  async createCommitComment(commitSha, body = this.commentBody) {
     const { data: comment } = await this.octokit.rest.repos.createCommitComment(
       {
         ...this.context.repo,
         commit_sha: commitSha,
-        body: this.commentBody
+        body
       }
     )
 
@@ -123,13 +151,54 @@ class ApprovalAction {
       throw new Error('Failed to create commit comment for approval.')
     }
 
-    core.debug(`Created comment with ID: ${comment.id}`)
+    core.info(`Created new commit comment: ${comment.url}`)
     return comment
+  }
+
+  async createPrComment(body) {
+    const { data: comment } = await this.octokit.rest.issues.createComment({
+      ...this.context.repo,
+      issue_number: this.context.payload.pull_request.number,
+      body
+    })
+
+    if (!comment || !comment.id) {
+      throw new Error('Failed to create PR comment for approval.')
+    }
+
+    core.info(`Created new PR comment: ${comment.url}`)
+    return comment
+  }
+
+  async resetPRComment(header, url) {
+    const { data: comments } = await this.octokit.rest.issues.listComments({
+      ...this.context.repo,
+      issue_number: this.context.payload.pull_request.number
+    })
+
+    const filteredComments = comments.data.filter(
+      c =>
+        c.body.startsWith(header) &&
+        c.user.id === this.tokenUser.databaseId &&
+        c.created_at === c.updated_at
+    )
+
+    await this.createPrComment(`${header}\n\nSee ${url}`)
+
+    core.info(`Created new PR comment: ${header}`)
+
+    for (const comment of filteredComments) {
+      await this.octokit.rest.issues.deleteComment({
+        ...this.context.repo,
+        comment_id: comment.id
+      })
+    }
   }
 
   // Wait for approval by checking reactions on a comment
   async waitForApproval(interval = this.checkInterval) {
     const startTime = Date.now()
+    core.info('Checking for reactions...')
     for (;;) {
       if (
         this.timeoutSeconds > 0 &&
@@ -138,7 +207,7 @@ class ApprovalAction {
         throw new Error('Approval process timed out')
       }
 
-      const reactions = await this.getReactionsByPermissions()
+      const reactions = await this.getEligibleReactions()
 
       const rejectedBy = reactions.find(r => r.content === this.rejectReaction)
         ?.user.login
@@ -158,7 +227,7 @@ class ApprovalAction {
         return
       }
 
-      core.debug('Waiting for approval...')
+      core.debug('Waiting for reactions...')
       await new Promise(resolve => setTimeout(resolve, interval * 1000))
     }
   }
@@ -172,21 +241,49 @@ class ApprovalAction {
     return permissionData.permission
   }
 
-  async getReactionsByPermissions(permissions = ['write', 'admin']) {
+  // Eligible reactions are those by users with the required permissions
+  async getEligibleReactions(permissions = ['write', 'admin']) {
     if (!this.commitComment) {
-      core.debug('Unable to get reactions: commit comment not found.')
-      console.error('Unable to get reactions: commit comment not found.')
-      return []
+      throw new Error(`Commit comment not found`)
     }
     const reactions = await this.commitComment.getReactions()
     const filtered = []
 
     for (const reaction of reactions) {
-      // TODO: exclude commit author(s) from maintainer reactions
-      const permission = await this.getUserPermission(reaction.user.login)
-      if (permissions.includes(permission)) {
-        filtered.push(reaction)
+      // Get IDs of all commit authors
+      const commitAuthors = this.context.payload.pull_request.commits.map(
+        c => c.author.id
+      )
+
+      // Exclude reactions by commit authors
+      if (commitAuthors.includes(reaction.user.id)) {
+        core.debug(
+          `Ignoring reaction :${reaction.content}: by ${reaction.user.login} (user is a commit author)`
+        )
+        continue
       }
+
+      // Exclude reactions by the token user
+      if (reaction.user.id === this.tokenUser.databaseId) {
+        core.debug(
+          `Ignoring reaction :${reaction.content}: by ${reaction.user.login} (user is token user)`
+        )
+        continue
+      }
+
+      // Exclude reactions by users without the required permissions
+      const permission = await this.getUserPermission(reaction.user.login)
+      if (!permissions.includes(permission)) {
+        core.debug(
+          `Ignoring reaction :${reaction.content}: by ${reaction.user.login} (user lacks permission)`
+        )
+        continue
+      }
+
+      core.info(
+        `Found reaction :${reaction.content}: by ${reaction.user.login}`
+      )
+      filtered.push(reaction)
     }
 
     return filtered
@@ -215,7 +312,7 @@ class ApprovalAction {
   // Set a single reaction on a comment, removing other reactions by this actor
   async setReaction(content) {
     if (!this.commitComment) {
-      core.debug('Unable to set reaction: commit comment not found.')
+      // nothing to do
       return
     }
     if (this.tokenUser) {

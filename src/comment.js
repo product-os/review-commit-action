@@ -1,6 +1,7 @@
 class CommitComment {
-  constructor(id, octokit, context) {
+  constructor(id, url, octokit, context) {
     this.id = id
+    this.url = url
     this.octokit = octokit
     this.context = context
   }

@@ -21,6 +21,11 @@ describe('ApprovalAction', () => {
     })
     mockOctokit = {
       rest: {
+        issues: {
+          createComment: jest.fn(),
+          listComments: jest.fn(),
+          deleteComment: jest.fn()
+        },
         repos: {
           listCommentsForCommit: jest.fn(),
           createCommitComment: jest.fn(),
@@ -36,7 +41,15 @@ describe('ApprovalAction', () => {
     github.getOctokit.mockReturnValue(mockOctokit)
     github.context = {
       repo: { owner: 'test-owner', repo: 'test-repo' },
-      payload: { pull_request: { head: { sha: 'test-sha' } } }
+      payload: {
+        pull_request: {
+          head: { sha: 'test-sha' },
+          commits: [
+            { author: { login: 'author1' }, sha: 'commit-sha-1' },
+            { author: { login: 'author2' }, sha: 'commit-sha-2' }
+          ]
+        }
+      }
     }
     action = new ApprovalAction()
   })
@@ -118,9 +131,7 @@ describe('ApprovalAction', () => {
 
   test('waitForApproval resolves on approval', async () => {
     const mockReactions = [{ content: '+1', user: { login: 'approver' } }]
-    action.getReactionsByPermissions = jest
-      .fn()
-      .mockResolvedValue(mockReactions)
+    action.getEligibleReactions = jest.fn().mockResolvedValue(mockReactions)
     action.commitComment = new CommitComment()
 
     await expect(action.waitForApproval(1)).resolves.not.toThrow()
@@ -129,9 +140,7 @@ describe('ApprovalAction', () => {
 
   test('waitForApproval throws on rejection', async () => {
     const mockReactions = [{ content: '-1', user: { login: 'rejector' } }]
-    action.getReactionsByPermissions = jest
-      .fn()
-      .mockResolvedValue(mockReactions)
+    action.getEligibleReactions = jest.fn().mockResolvedValue(mockReactions)
     action.commitComment = new CommitComment()
 
     await expect(action.waitForApproval(1)).rejects.toThrow(
@@ -142,7 +151,7 @@ describe('ApprovalAction', () => {
 
   test('waitForApproval times out', async () => {
     action.timeoutSeconds = 1
-    action.getReactionsByPermissions = jest.fn().mockResolvedValue([])
+    action.getEligibleReactions = jest.fn().mockResolvedValue([])
     action.commitComment = new CommitComment()
 
     await expect(action.waitForApproval(0.5)).rejects.toThrow(
@@ -159,7 +168,7 @@ describe('ApprovalAction', () => {
     expect(result).toBe('write')
   })
 
-  test('getReactionsByPermissions filters reactions correctly', async () => {
+  test('getEligibleReactions filters reactions correctly', async () => {
     const mockReactions = [
       { content: '+1', user: { login: 'admin-user' } },
       { content: '-1', user: { login: 'write-user' } },
@@ -174,7 +183,7 @@ describe('ApprovalAction', () => {
       .mockResolvedValueOnce('write')
       .mockResolvedValueOnce('read')
 
-    const result = await action.getReactionsByPermissions(['write', 'admin'])
+    const result = await action.getEligibleReactions(['write', 'admin'])
     expect(result).toEqual([mockReactions[0], mockReactions[1]])
   })
 
