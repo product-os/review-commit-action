@@ -83,7 +83,11 @@ describe('ApprovalAction', () => {
       data: mockComments
     })
 
-    const result = await action.findCommitComment('test-sha', 123)
+    const result = await action.findCommitComment(
+      'test-sha',
+      123,
+      action.commentBody
+    )
     expect(result).toEqual(mockComments[0])
   })
 

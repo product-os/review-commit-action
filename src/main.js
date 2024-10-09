@@ -43,7 +43,8 @@ class ApprovalAction {
 
       const existingComment = await this.findCommitComment(
         prHeadSha,
-        this.tokenUser
+        this.tokenUser.databaseId,
+        this.commentBody
       )
 
       if (existingComment) {
@@ -55,15 +56,17 @@ class ApprovalAction {
         )
       }
 
-      const newComment = await this.createCommitComment(prHeadSha)
+      if (!this.commitComment) {
+        const newComment = await this.createCommitComment(prHeadSha)
 
-      if (newComment) {
-        core.setOutput('comment-id', newComment.id)
-        this.commitComment = new CommitComment(
-          newComment.id,
-          this.octokit,
-          this.context
-        )
+        if (newComment) {
+          core.setOutput('comment-id', newComment.id)
+          this.commitComment = new CommitComment(
+            newComment.id,
+            this.octokit,
+            this.context
+          )
+        }
       }
 
       if (!this.commitComment) {
@@ -84,7 +87,7 @@ class ApprovalAction {
   // - body matches commentBody
   // - created_at matches updated_at
   // - user matches the provided token
-  async findCommitComment(commitSha, userId) {
+  async findCommitComment(commitSha, userId, body = this.commentBody) {
     const { data: comments } =
       await this.octokit.rest.repos.listCommentsForCommit({
         ...this.context.repo,
@@ -94,9 +97,7 @@ class ApprovalAction {
     // Filter commit comments to match the body to commentBody and created_at matches updated_at
     const comment = comments.find(
       c =>
-        c.body === this.commentBody &&
-        c.created_at === c.updated_at &&
-        c.user.id === userId
+        c.body === body && c.created_at === c.updated_at && c.user.id === userId
     )
 
     if (!comment || !comment.id) {
