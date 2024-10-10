@@ -4,13 +4,13 @@
   "version": "0.0.5",
   "author": "",
   "private": true,
-  "homepage": "https://github.com/balena-io-experimental/review-commit-action#readme",
+  "homepage": "https://github.com/product-os/review-commit-action#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/balena-io-experimental/review-commit-action.git"
+    "url": "git+https://github.com/product-os/review-commit-action.git"
   },
   "bugs": {
-    "url": "https://github.com/balena-io-experimental/review-commit-action/issues"
+    "url": "https://github.com/product-os/review-commit-action/issues"
   },
   "keywords": [
     "GitHub",

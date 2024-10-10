@@ -15,7 +15,7 @@ To use this action in your workflow, add the following step:
 
 ```yaml
 - name: Wait for Approval
-  uses: balena-io-experimental/review-commit-action@v1
+  uses: product-os/review-commit-action@v1
   with:
     github-token: ${{ secrets.GITHUB_TOKEN }}
     approve-reaction: '+1'
@@ -73,7 +73,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Wait for Approval
-        uses: balena-io-experimental/review-commit-action@v1
+        uses: product-os/review-commit-action@v1
         id: commit-review
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
