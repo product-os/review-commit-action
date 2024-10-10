@@ -11,6 +11,14 @@ inputs:
     description: 'Interval in seconds between checks for reactions'
     required: false
     default: '10'
+  timeout-seconds:
+    description: 'Timeout in seconds for the action'
+    required: false
+    default: '600'
+  authors-can-review:
+    description: 'Authors can approve/reject their own commits'
+    required: false
+    default: 'false'
 
 outputs:
   comment-id:

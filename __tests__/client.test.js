@@ -29,6 +29,9 @@ describe('GitHubClient', () => {
           createForCommitComment: jest.fn(),
           deleteForCommitComment: jest.fn(),
           listForCommitComment: jest.fn()
+        },
+        pulls: {
+          listCommits: jest.fn()
         }
       }
     }
@@ -54,8 +57,23 @@ describe('GitHubClient', () => {
     expect(gitHubClient.getPullRequestHeadSha()).toBe('testSha')
   })
 
-  test('getPullRequestAuthors returns the correct author IDs', () => {
-    expect(gitHubClient.getPullRequestAuthors()).toEqual(['author1', 'author2'])
+  test('getPullRequestAuthors returns the correct author IDs', async () => {
+    const mockCommits = [
+      {
+        sha: 'testSha',
+        author: { id: 'author1' }
+      },
+      {
+        sha: 'testSha',
+        author: { id: 'author2' }
+      }
+    ]
+    mockOctokit.rest.pulls.listCommits.mockResolvedValue({
+      data: mockCommits
+    })
+
+    const authors = await gitHubClient.getPullRequestAuthors()
+    expect(authors).toEqual(['author1', 'author2'])
   })
 
   test('getAuthenticatedUser returns the correct user data', async () => {
@@ -117,7 +135,7 @@ describe('GitHubClient', () => {
   })
 
   test('createCommitComment creates a new comment', async () => {
-    const mockComment = { id: 1, url: 'http://test.com/comment' }
+    const mockComment = { id: 1, html_url: 'http://test.com/comment' }
     mockOctokit.rest.repos.createCommitComment.mockResolvedValue({
       data: mockComment
     })
@@ -191,7 +209,7 @@ describe('GitHubClient', () => {
   })
 
   test('createPullRequestComment creates a new PR comment', async () => {
-    const mockComment = { id: 1, url: 'http://test.com/pr-comment' }
+    const mockComment = { id: 1, html_url: 'http://test.com/pr-comment' }
     mockOctokit.rest.issues.createComment.mockResolvedValue({
       data: mockComment
     })

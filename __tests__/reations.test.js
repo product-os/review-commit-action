@@ -6,6 +6,7 @@ jest.mock('@actions/core')
 describe('ReactionManager', () => {
   let reactionManager
   let mockGitHubClient
+  let mockConfig
 
   beforeEach(() => {
     jest.clearAllMocks()
@@ -19,7 +20,12 @@ describe('ReactionManager', () => {
       getUserPermission: jest.fn()
     }
 
-    reactionManager = new ReactionManager(mockGitHubClient)
+    mockConfig = {
+      authorsCanReview: false,
+      reviewerPermissions: ['write', 'admin']
+    }
+
+    reactionManager = new ReactionManager(mockGitHubClient, mockConfig)
   })
 
   test('createReaction creates a reaction successfully', async () => {
@@ -153,10 +159,7 @@ describe('ReactionManager', () => {
       return permissions[username]
     })
 
-    const eligibleReactions = await reactionManager.getEligibleReactions(123, [
-      'write',
-      'admin'
-    ])
+    const eligibleReactions = await reactionManager.getEligibleReactions(123)
 
     expect(eligibleReactions).toEqual([mockReactions[2]])
 

@@ -1,8 +1,9 @@
 const Logger = require('./logger')
 
 class ReactionManager {
-  constructor(gitHubClient) {
+  constructor(gitHubClient, config) {
     this.gitHubClient = gitHubClient
+    this.config = config
   }
 
   async createReaction(commentId, content) {
@@ -47,7 +48,9 @@ class ReactionManager {
   }
 
   // Eligible reactions are those by users with the required permissions
-  async getEligibleReactions(commentId, permissions = ['write', 'admin']) {
+  async getEligibleReactions(commentId) {
+    const permissions = this.config.reviewerPermissions
+    const authorsCanReview = this.config.authorsCanReview
     const reactions = await this.getReactions(commentId)
     const filtered = []
 
@@ -55,10 +58,10 @@ class ReactionManager {
 
     for (const reaction of reactions) {
       // Get IDs of all commit authors
-      const authors = this.gitHubClient.getPullRequestAuthors()
+      const authors = await this.gitHubClient.getPullRequestAuthors()
 
       // Exclude reactions by commit authors
-      if (authors.includes(reaction.user.id)) {
+      if (!authorsCanReview && authors.includes(reaction.user.id)) {
         Logger.debug(
           `Ignoring reaction :${reaction.content}: by ${reaction.user.login} (user is a commit author)`
         )

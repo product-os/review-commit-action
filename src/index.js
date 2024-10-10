@@ -13,19 +13,20 @@ async function run() {
       token: core.getInput('github-token'),
       checkInterval: parseInt(core.getInput('check-interval')) || 10,
       timeoutSeconds: parseInt(core.getInput('timeout-seconds')) || 0,
+      authorsCanReview: core.getBooleanInput('authors-can-review'),
       approveReaction: '+1',
       rejectReaction: '-1',
       waitReaction: 'eyes',
       successReaction: 'rocket',
       failedReaction: 'confused',
       commentHeader: 'A repository maintainer needs to approve this workflow.',
-      commentBody: 'React with :+1: to approve or :-1: to reject.',
+      commentFooter: 'React with :+1: to approve or :-1: to reject.',
       reviewerPermissions: ['write', 'admin']
     }
 
     const octokit = github.getOctokit(config.token)
     const gitHubClient = new GitHubClient(octokit, github.context)
-    const reactionManager = new ReactionManager(gitHubClient)
+    const reactionManager = new ReactionManager(gitHubClient, config)
     const approvalProcess = new ApprovalProcess(
       gitHubClient,
       reactionManager,

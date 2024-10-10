@@ -12,15 +12,19 @@ class ApprovalProcess {
     const prHeadSha = this.gitHubClient.getPullRequestHeadSha()
     const tokenUser = await this.gitHubClient.getAuthenticatedUser()
 
+    const commitCommentBody = [
+      this.config.commentHeader,
+      this.config.commentFooter
+    ].join('\n\n')
     let comment = await this.gitHubClient.findCommitComment(
       prHeadSha,
       tokenUser.id,
-      this.config.commentBody
+      commitCommentBody
     )
     if (!comment) {
       comment = await this.gitHubClient.createCommitComment(
         prHeadSha,
-        this.config.commentBody
+        commitCommentBody
       )
     }
 
@@ -31,8 +35,10 @@ class ApprovalProcess {
     await this.gitHubClient.deleteStalePullRequestComments(
       this.config.commentHeader
     )
+
+    const pullRequestCommentBody = `See ${comment.html_url}`
     await this.gitHubClient.createPullRequestComment(
-      `${this.config.commentHeader}\n\nSee ${comment.url}`
+      [this.config.commentHeader, pullRequestCommentBody].join('\n\n')
     )
 
     try {
@@ -59,10 +65,8 @@ class ApprovalProcess {
         throw new Error('Approval process timed out')
       }
 
-      const reactions = await this.reactionManager.getEligibleReactions(
-        commentId,
-        this.config.reviewerPermissions
-      )
+      const reactions =
+        await this.reactionManager.getEligibleReactions(commentId)
 
       const rejectedBy = reactions.find(
         r => r.content === this.config.rejectReaction

@@ -10,8 +10,18 @@ class GitHubClient {
     return this.context.payload.pull_request.head.sha
   }
 
-  getPullRequestAuthors() {
-    return this.context.payload.pull_request.commits.map(c => c.author.id)
+  async getPullRequestAuthors() {
+    const commits = await this.getPullRequestCommits()
+    return commits.map(c => c.author.id)
+  }
+
+  // https://docs.github.com/en/rest/pulls/pulls?apiVersion=2022-11-28#list-commits-on-a-pull-request
+  async getPullRequestCommits() {
+    const { data: commits } = await this.octokit.rest.pulls.listCommits({
+      ...this.context.repo,
+      pull_number: this.context.payload.pull_request.number
+    })
+    return commits
   }
 
   async getAuthenticatedUser() {
@@ -21,7 +31,7 @@ class GitHubClient {
   }
 
   // Find existing commit comment with the following criteria:
-  // - body matches commentBody
+  // - body matches provided body
   // - created_at matches updated_at
   // - user matches the provided token
   async findCommitComment(commitSha, userId, body) {
@@ -31,7 +41,7 @@ class GitHubClient {
         commit_sha: commitSha
       })
 
-    // Filter commit comments to match the body to commentBody and created_at matches updated_at
+    // Filter commit comments to match the body and created_at matches updated_at
     const comment = comments.find(
       c =>
         c.body === body && c.created_at === c.updated_at && c.user.id === userId
@@ -46,7 +56,7 @@ class GitHubClient {
     return comment
   }
 
-  // Create a new commit comment with the provided commentBody
+  // Create a new commit comment with the provided body
   async createCommitComment(commitSha, body) {
     const { data: comment } = await this.octokit.rest.repos.createCommitComment(
       {

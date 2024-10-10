@@ -29923,15 +29923,19 @@ class ApprovalProcess {
     const prHeadSha = this.gitHubClient.getPullRequestHeadSha()
     const tokenUser = await this.gitHubClient.getAuthenticatedUser()
 
+    const commitCommentBody = [
+      this.config.commentHeader,
+      this.config.commentFooter
+    ].join('\n\n')
     let comment = await this.gitHubClient.findCommitComment(
       prHeadSha,
       tokenUser.id,
-      this.config.commentBody
+      commitCommentBody
     )
     if (!comment) {
       comment = await this.gitHubClient.createCommitComment(
         prHeadSha,
-        this.config.commentBody
+        commitCommentBody
       )
     }
 
@@ -29942,8 +29946,10 @@ class ApprovalProcess {
     await this.gitHubClient.deleteStalePullRequestComments(
       this.config.commentHeader
     )
+
+    const pullRequestCommentBody = `See ${comment.html_url}`
     await this.gitHubClient.createPullRequestComment(
-      `${this.config.commentHeader}\n\nSee ${comment.url}`
+      [this.config.commentHeader, pullRequestCommentBody].join('\n\n')
     )
 
     try {
@@ -29970,10 +29976,8 @@ class ApprovalProcess {
         throw new Error('Approval process timed out')
       }
 
-      const reactions = await this.reactionManager.getEligibleReactions(
-        commentId,
-        this.config.reviewerPermissions
-      )
+      const reactions =
+        await this.reactionManager.getEligibleReactions(commentId)
 
       const rejectedBy = reactions.find(
         r => r.content === this.config.rejectReaction
@@ -30021,8 +30025,18 @@ class GitHubClient {
     return this.context.payload.pull_request.head.sha
   }
 
-  getPullRequestAuthors() {
-    return this.context.payload.pull_request.commits.map(c => c.author.id)
+  async getPullRequestAuthors() {
+    const commits = await this.getPullRequestCommits()
+    return commits.map(c => c.author.id)
+  }
+
+  // https://docs.github.com/en/rest/pulls/pulls?apiVersion=2022-11-28#list-commits-on-a-pull-request
+  async getPullRequestCommits() {
+    const { data: commits } = await this.octokit.rest.pulls.listCommits({
+      ...this.context.repo,
+      pull_number: this.context.payload.pull_request.number
+    })
+    return commits
   }
 
   async getAuthenticatedUser() {
@@ -30032,7 +30046,7 @@ class GitHubClient {
   }
 
   // Find existing commit comment with the following criteria:
-  // - body matches commentBody
+  // - body matches provided body
   // - created_at matches updated_at
   // - user matches the provided token
   async findCommitComment(commitSha, userId, body) {
@@ -30042,7 +30056,7 @@ class GitHubClient {
         commit_sha: commitSha
       })
 
-    // Filter commit comments to match the body to commentBody and created_at matches updated_at
+    // Filter commit comments to match the body and created_at matches updated_at
     const comment = comments.find(
       c =>
         c.body === body && c.created_at === c.updated_at && c.user.id === userId
@@ -30057,7 +30071,7 @@ class GitHubClient {
     return comment
   }
 
-  // Create a new commit comment with the provided commentBody
+  // Create a new commit comment with the provided body
   async createCommitComment(commitSha, body) {
     const { data: comment } = await this.octokit.rest.repos.createCommitComment(
       {
@@ -30206,19 +30220,20 @@ async function run() {
       token: core.getInput('github-token'),
       checkInterval: parseInt(core.getInput('check-interval')) || 10,
       timeoutSeconds: parseInt(core.getInput('timeout-seconds')) || 0,
+      authorsCanReview: core.getBooleanInput('authors-can-review'),
       approveReaction: '+1',
       rejectReaction: '-1',
       waitReaction: 'eyes',
       successReaction: 'rocket',
       failedReaction: 'confused',
       commentHeader: 'A repository maintainer needs to approve this workflow.',
-      commentBody: 'React with :+1: to approve or :-1: to reject.',
+      commentFooter: 'React with :+1: to approve or :-1: to reject.',
       reviewerPermissions: ['write', 'admin']
     }
 
     const octokit = github.getOctokit(config.token)
     const gitHubClient = new GitHubClient(octokit, github.context)
-    const reactionManager = new ReactionManager(gitHubClient)
+    const reactionManager = new ReactionManager(gitHubClient, config)
     const approvalProcess = new ApprovalProcess(
       gitHubClient,
       reactionManager,
@@ -30272,8 +30287,9 @@ module.exports = Logger
 const Logger = __nccwpck_require__(8033)
 
 class ReactionManager {
-  constructor(gitHubClient) {
+  constructor(gitHubClient, config) {
     this.gitHubClient = gitHubClient
+    this.config = config
   }
 
   async createReaction(commentId, content) {
@@ -30318,7 +30334,9 @@ class ReactionManager {
   }
 
   // Eligible reactions are those by users with the required permissions
-  async getEligibleReactions(commentId, permissions = ['write', 'admin']) {
+  async getEligibleReactions(commentId) {
+    const permissions = this.config.reviewerPermissions
+    const authorsCanReview = this.config.authorsCanReview
     const reactions = await this.getReactions(commentId)
     const filtered = []
 
@@ -30326,10 +30344,10 @@ class ReactionManager {
 
     for (const reaction of reactions) {
       // Get IDs of all commit authors
-      const authors = this.gitHubClient.getPullRequestAuthors()
+      const authors = await this.gitHubClient.getPullRequestAuthors()
 
       // Exclude reactions by commit authors
-      if (authors.includes(reaction.user.id)) {
+      if (!authorsCanReview && authors.includes(reaction.user.id)) {
         Logger.debug(
           `Ignoring reaction :${reaction.content}: by ${reaction.user.login} (user is a commit author)`
         )

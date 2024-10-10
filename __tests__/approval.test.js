@@ -10,7 +10,6 @@ describe('ApprovalProcess', () => {
   let mockGitHubClient
   let mockReactionManager
   let mockConfig
-  let originalDateNow
 
   beforeEach(() => {
     jest.clearAllMocks()
@@ -30,7 +29,7 @@ describe('ApprovalProcess', () => {
     }
 
     mockConfig = {
-      commentBody: 'Test comment body',
+      commentFooter: 'Test comment footer',
       waitReaction: 'eyes',
       commentHeader: 'Test comment header',
       checkInterval: 1,
@@ -57,7 +56,7 @@ describe('ApprovalProcess', () => {
       mockGitHubClient.findCommitComment.mockResolvedValue(null)
       mockGitHubClient.createCommitComment.mockResolvedValue({
         id: 'test-comment-id',
-        url: 'http://test-url.com'
+        html_url: 'http://test-url.com'
       })
       approvalProcess.waitForApproval = jest.fn()
     })
@@ -65,14 +64,18 @@ describe('ApprovalProcess', () => {
     test('creates a new comment when no existing comment is found', async () => {
       await approvalProcess.run()
 
+      const commentBody = [
+        mockConfig.commentHeader,
+        mockConfig.commentFooter
+      ].join('\n\n')
       expect(mockGitHubClient.findCommitComment).toHaveBeenCalledWith(
         'test-sha',
         'test-user-id',
-        mockConfig.commentBody
+        commentBody
       )
       expect(mockGitHubClient.createCommitComment).toHaveBeenCalledWith(
         'test-sha',
-        mockConfig.commentBody
+        commentBody
       )
       expect(mockReactionManager.createReaction).toHaveBeenCalledWith(
         'test-comment-id',
@@ -89,7 +92,7 @@ describe('ApprovalProcess', () => {
     test('uses existing comment when found', async () => {
       const existingComment = {
         id: 'existing-comment-id',
-        url: 'http://existing-url.com'
+        html_url: 'http://existing-url.com'
       }
       mockGitHubClient.findCommitComment.mockResolvedValue(existingComment)
 
