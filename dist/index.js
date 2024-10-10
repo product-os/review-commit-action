@@ -30027,6 +30027,25 @@ class GitHubClient {
   }
 
   getPullRequestHeadSha() {
+    if (!this.context.payload.pull_request) {
+      throw new Error('No pull request found in context!')
+    }
+
+    const payloadBaseRepo = {
+      owner: this.context.payload.pull_request.base.repo.owner.login,
+      repo: this.context.payload.pull_request.base.repo.name
+    }
+
+    // This condition is for the untested case where the PR is from a fork.
+    // We can't take the risk that the base repo is different from the context repo.
+    // This should never happen but bail out if it ever does.
+    if (JSON.stringify(this.context.repo) !== JSON.stringify(payloadBaseRepo)) {
+      Logger.debug(JSON.stringify(this.context.repo, null, 2))
+      Logger.debug(JSON.stringify(payloadBaseRepo, null, 2))
+      throw new Error(
+        'Context repo does not match payload pull request base repo!'
+      )
+    }
     return this.context.payload.pull_request.head.sha
   }
 
