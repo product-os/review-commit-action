@@ -1,4 +1,38 @@
 - commits:
+    - subject: Disallow reviews by authors by default
+      hash: a3e59e82451e4b056b7f0729e6b1d20a2fbd5955
+      body: ""
+      footer:
+        Change-type: patch
+        change-type: patch
+        Signed-off-by: Kyle Harding <kyle@balena.io>
+        signed-off-by: Kyle Harding <kyle@balena.io>
+      author: Kyle Harding
+      nested: []
+    - subject: Fix search for existing commit comments
+      hash: 33c0800d59610a740e3225ed9cc0f262d7f04576
+      body: ""
+      footer:
+        Change-type: patch
+        change-type: patch
+        Signed-off-by: Kyle Harding <kyle@balena.io>
+        signed-off-by: Kyle Harding <kyle@balena.io>
+      author: Kyle Harding
+      nested: []
+    - subject: Move some functions from CommitComment class
+      hash: 6da6a72948391d7b9679820fef2a081489f5ecfd
+      body: ""
+      footer:
+        Change-type: patch
+        change-type: patch
+        Signed-off-by: Kyle Harding <kyle@balena.io>
+        signed-off-by: Kyle Harding <kyle@balena.io>
+      author: Kyle Harding
+      nested: []
+  version: 0.0.5
+  title: ""
+  date: 2024-10-10T13:19:45.249Z
+- commits:
     - subject: Fix mismatch when filtering reactions by login user
       hash: d8c3287090718e56f62b8db66ea3330ffb996a58
       body: ""
