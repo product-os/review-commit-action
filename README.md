@@ -8,8 +8,8 @@ where you need manual approval before proceeding with certain actions.
 
 1. When triggered in a PR workflow, the action creates a commit comment on the
    tip of HEAD.
-2. The comment requests that a repo maintainer react with the specified approval
-   reaction (default: 👍) to approve the workflow.
+2. The comment requests that a repository maintainer react with the specified
+   approval reaction (default: 👍) to approve the workflow.
 3. The action then enters a loop, waiting for a reaction from someone with write
    access to the repository.
 4. If the required reaction is not found, it will continue looping until the job
