@@ -12,6 +12,9 @@ class ApprovalProcess {
     const prHeadSha = this.gitHubClient.getPullRequestHeadSha()
     const tokenUser = await this.gitHubClient.getAuthenticatedUser()
 
+    // used for validation purposes only
+    this.gitHubClient.getPullRequestRepository()
+
     const commitCommentBody = [
       this.config.commentHeader,
       this.config.commentFooter
