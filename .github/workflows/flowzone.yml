@@ -10,8 +10,7 @@ on:
     branches: [main, master]
 
 permissions:
-  contents: read
-  actions: read
+  contents: write
   pull-requests: write
 
 jobs:

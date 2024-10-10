@@ -62,12 +62,12 @@ To use this action in your workflow, add the following step:
 
 This action requires a token with the following permissions:
 
-- `contents:read`
-- `actions:read`
-- `pull-requests:write`
+- `contents:write`: Required to create comments on commits.
+- `pull-requests:write`: Required to create comments on pull requests.
 
 The automatic actions `GITHUB_TOKEN` secret should work fine, and is the
-default.
+default. Read how to adjust the permissions of the automatic token
+[here](https://docs.github.com/en/actions/writing-workflows/choosing-what-your-workflow-does/controlling-permissions-for-github_token).
 
 ### Inputs
 
@@ -105,8 +105,7 @@ jobs:
     runs-on: ubuntu-latest
 
     permissions:
-      contents: read
-      actions: read
+      contents: write
       pull-requests: write
 
     steps:
