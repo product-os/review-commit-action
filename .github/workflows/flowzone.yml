@@ -9,6 +9,11 @@ on:
     types: [opened, synchronize, closed]
     branches: [main, master]
 
+permissions:
+  contents: read
+  actions: read
+  pull-requests: write
+
 jobs:
   flowzone:
     name: Flowzone

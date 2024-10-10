@@ -1,32 +1,38 @@
 name: 'Approved Commit Action'
-description: 'Wait for approval from a repository maintainer on a commit comment'
+description:
+  'Wait for approval from a repository maintainer on a commit comment'
 author: 'Balena <hello@balena.io>'
 
 inputs:
   github-token:
-    description: 'GitHub token for authentication'
+    description:
+      'GitHub token for authentication. The user associated with this token is
+      not eligible to review.'
     required: false
     default: ${{ github.token }}
   check-interval:
-    description: 'Interval in seconds between checks for reactions'
+    description: 'Interval in seconds between checks for reactions.'
     required: false
     default: '10'
   timeout-seconds:
-    description: 'Timeout in seconds to wait for eligible reactions. Set to 0 to disable timeout. Overall job timeout takes precedence.'
+    description:
+      'Timeout in seconds to wait for eligible reactions. Set to 0 to disable
+      timeout. Overall job timeout takes precedence.'
     required: false
     default: '0'
   allow-authors:
-    description: 'Allow pull request commit authors to approve or reject the workflow.'
+    description:
+      'Allow pull request commit authors to approve or reject the workflow.'
     required: false
     default: 'false'
 
 outputs:
   comment-id:
-    description: 'ID of the commit comment'
+    description: 'ID of the commit comment requiring review.'
   approved-by:
-    description: 'Login of the user who approved the commit'
+    description: 'Username of the user who approved the commit.'
   rejected-by:
-    description: 'Login of the user who rejected the commit'
+    description: 'Username of the user who rejected the commit.'
 
 runs:
   using: 'node20'

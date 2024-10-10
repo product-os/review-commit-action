@@ -139,6 +139,8 @@ class GitHubClient {
     }
   }
 
+  // https://octokit.github.io/rest.js/v21/#repos-get-collaborator-permission-level
+  // https://docs.github.com/en/rest/collaborators/collaborators?apiVersion=2022-11-28#get-repository-permissions-for-a-user
   async getUserPermission(username) {
     const { data: permissionData } =
       await this.octokit.rest.repos.getCollaboratorPermissionLevel({

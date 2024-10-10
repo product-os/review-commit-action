@@ -1,8 +1,8 @@
 # https://docs.github.com/en/actions/creating-actions/creating-a-composite-action
-name: "Custom tests"
-description: "Run custom tests"
+name: 'Custom tests'
+description: 'Run custom tests'
 runs:
-  using: "composite"
+  using: 'composite'
   steps:
     - uses: ./
       id: commit-review
@@ -12,4 +12,7 @@ runs:
         allow-authors: true
     - name: Run after approval
       shell: bash
-      run: echo "Approved by ${{ steps.commit-review.outputs.approved-by }}!"
+      run: |
+        echo "Comment ID: ${{ steps.commit-review.outputs.comment-id }}"
+        echo "Approved by: ${{ steps.commit-review.outputs.approved-by }}"
+        echo "Rejected by: ${{ steps.commit-review.outputs.rejected-by }}"

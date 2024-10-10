@@ -1,13 +1,49 @@
-# Approved Commit Action
+# Review Commit Action
 
-This GitHub Action waits for approval from a repository maintainer via a reaction on a commit comment.
-It's designed to be used in pull request workflows where you need manual approval before proceeding with certain actions.
+This GitHub Action waits for approval from a repository maintainer via a
+reaction on a commit comment. It's designed to be used in pull request workflows
+where you need manual approval before proceeding with certain actions.
 
-## Features
+## How It Works
 
-- Creates a commit comment on the tip of HEAD in pull request workflows
-- Waits for a reaction from a collaborator with write access to the repository
-- Supports custom reactions for approval and denial
+1. When triggered in a PR workflow, the action creates a commit comment on the
+   tip of HEAD.
+2. The comment requests that a repo maintainer react with the specified approval
+   reaction (default: 👍) to approve the workflow.
+3. The action then enters a loop, waiting for a reaction from someone with write
+   access to the repository.
+4. If the required reaction is not found, it will continue looping until the job
+   times out.
+5. If a denial reaction is received from someone with write access, the action
+   will exit with an error.
+
+### Additional details
+
+- Reviews are completed by reacting with emoji 👍 or 👎 on the generated commit
+  comment.
+- If the review is rejected, the action will throw an error and exit the
+  workflow.
+- If the review is approved, the action will log the approver name and continue
+  the workflow.
+- If the action times out, it will throw an error and exit the workflow. It can
+  still be re-run manually at this point.
+- Users must have at least `write` access to the repository to have their
+  reactions considered as eligible. Read
+  [this](https://docs.github.com/en/rest/collaborators/collaborators?apiVersion=2022-11-28#get-repository-permissions-for-a-user)
+  to see how permissions are mapped.
+- The user associated with the token running the action is excluded from
+  eligible reviewers. It is advised to use the actions `GITHUB_TOKEN` secret or
+  App Installation tokens.
+- By default, authors of commits on the PR are excluded from eligible reviewers,
+  but this can be toggled via an input.
+- The commit comment requiring review is always associated with the latest SHA
+  that triggered the PR workflow. This is done to prevent Actions Time Of Check
+  to Time Of Use (TOCTOU) attacks. Read more
+  [here](https://securitylab.github.com/resources/github-actions-preventing-pwn-requests/)
+  and [here](https://github.com/AdnaneKhan/ActionsTOCTOU/blob/main/README.md).
+- A helper PR comment is created for convenience, always pointing to the current
+  static commit comment requiring review. This PR comment is purely for
+  convenience and is not part of the chain of trust.
 
 ## Usage
 
@@ -15,36 +51,41 @@ To use this action in your workflow, add the following step:
 
 ```yaml
 - name: Wait for Approval
-  uses: product-os/review-commit-action@v1
+  uses: product-os/review-commit-action@main
   with:
-    github-token: ${{ secrets.GITHUB_TOKEN }}
-    approve-reaction: '+1'
-    reject-reaction: '-1'
     check-interval: '10'
+    timeout-seconds: 600
+    allow-authors: false
 ```
+
+### Permissions
+
+This action requires a token with the following permissions:
+
+- `contents:read`
+- `actions:read`
+- `pull-requests:write`
+
+The automatic actions `GITHUB_TOKEN` secret should work fine, and is the
+default.
 
 ### Inputs
 
-| Input | Description | Required | Default |
-|-------|-------------|----------|---------|
-| `github-token` | GitHub token for authentication | No | `${{ github.token }}` |
-| `check-interval` | Interval in seconds between checks for reactions | No | `'10'` |
+- `github-token`: GitHub token for authentication. The user associated with this
+  token is not eligible to review. Uses the actions `GITHUB_TOKEN` secret if
+  unset.
+- `check-interval`: Interval in seconds between checks for reactions. Default is
+  `10`.
+- `timeout-seconds`: Timeout in seconds to wait for eligible reactions. Set to
+  `0` to disable timeout. Overall job timeout takes precedence.
+- `allow-authors`: Allow pull request commit authors to approve or reject the
+  workflow. Default is `false`.
 
 ### Outputs
 
-| Output | Description |
-|--------|-------------|
-| `comment-id` | `ID of the commit comment` |
-| `approved-by` | `Login of the user who approved the commit` |
-| `rejected-by` | `Login of the user who rejected the commit` |
-
-## Workflow
-
-1. When triggered in a PR workflow, the action creates a commit comment on the tip of HEAD.
-2. The comment requests that a repo maintainer react with the specified approval reaction (default: 👍) to approve the workflow.
-3. The action then enters a loop, waiting for a reaction from someone with write access to the repository.
-4. If the required reaction is not found, it will continue looping until the job times out.
-5. If a denial reaction is received from someone with write access, the action will exit with an error.
+- `comment-id`: ID of the commit comment requiring review.
+- `approved-by`: Username of the user who approved the commit.
+- `rejected-by`: Username of the user who rejected the commit.
 
 ## Example Workflow
 
@@ -73,22 +114,15 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Wait for Approval
-        uses: product-os/review-commit-action@v1
+        uses: product-os/review-commit-action@main
         id: commit-review
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Run after approval
-        run: echo "Approved by ${{ steps.commit-review.outputs.approved-by }}! Proceeding with the workflow."
+        run: |
+          echo "Comment ID: ${{ steps.commit-review.outputs.comment-id }}"
+          echo "Approved by: ${{ steps.commit-review.outputs.approved-by }}"
+          echo "Rejected by: ${{ steps.commit-review.outputs.rejected-by }}"
 ```
-
-## Permissions
-
-This action requires a token with the following permissions:
-
-- `contents:read`
-- `actions:read`
-- `pull-requests:write`
 
 ## Contributing
 
@@ -100,12 +134,15 @@ Contributions to improve the action are welcome! Please follow these steps:
 4. Push to your branch
 5. Create a new Pull Request
 
-Please make sure to update tests as appropriate and adhere to the existing coding style.
+Please make sure to update tests as appropriate and adhere to the existing
+coding style.
 
 ## License
 
-This project is licensed under Apache 2.0 - see the [LICENSE](LICENSE) file for details.
+This project is licensed under Apache 2.0 - see the [LICENSE](LICENSE) file for
+details.
 
 ## Support
 
-If you encounter any problems or have any questions, please open an issue in the GitHub repository.
+If you encounter any problems or have any questions, please open an issue in the
+GitHub repository.
