@@ -12,11 +12,11 @@ inputs:
     required: false
     default: '10'
   timeout-seconds:
-    description: 'Timeout in seconds for the action'
+    description: 'Timeout in seconds to wait for eligible reactions. Set to 0 to disable timeout. Overall job timeout takes precedence.'
     required: false
-    default: '600'
-  authors-can-review:
-    description: 'Authors can approve/reject their own commits'
+    default: '0'
+  allow-authors:
+    description: 'Allow pull request commit authors to approve or reject the workflow.'
     required: false
     default: 'false'
 

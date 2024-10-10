@@ -9,7 +9,7 @@ runs:
       with:
         check-interval: 5
         timeout-seconds: 600
-        authors-can-review: true
+        allow-authors: true
     - name: Run after approval
       shell: bash
       run: echo "Approved by ${{ steps.commit-review.outputs.approved-by }}!"

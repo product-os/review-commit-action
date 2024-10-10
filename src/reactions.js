@@ -71,7 +71,7 @@ class ReactionManager {
       // Exclude reactions by the token user
       if (reaction.user.id === tokenUser.id) {
         Logger.debug(
-          `Ignoring reaction :${reaction.content}: by ${reaction.user.login} (user is token user)`
+          `Ignoring reaction :${reaction.content}: by ${reaction.user.login} (user is the token user)`
         )
         continue
       }
@@ -82,7 +82,7 @@ class ReactionManager {
       )
       if (!permissions.includes(permission)) {
         Logger.debug(
-          `Ignoring reaction :${reaction.content}: by ${reaction.user.login} (user lacks permission)`
+          `Ignoring reaction :${reaction.content}: by ${reaction.user.login} (user lacks required permissions)`
         )
         continue
       }

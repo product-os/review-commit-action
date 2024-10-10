@@ -30223,13 +30223,14 @@ async function run() {
       token: core.getInput('github-token'),
       checkInterval: parseInt(core.getInput('check-interval')) || 10,
       timeoutSeconds: parseInt(core.getInput('timeout-seconds')) || 0,
-      authorsCanReview: core.getBooleanInput('authors-can-review'),
+      authorsCanReview: core.getBooleanInput('allow-authors'),
       approveReaction: '+1',
       rejectReaction: '-1',
       waitReaction: 'eyes',
       successReaction: 'rocket',
       failedReaction: 'confused',
-      commentHeader: 'A repository maintainer needs to approve this workflow.',
+      commentHeader:
+        'A repository maintainer needs to approve the commit(s) for this workflow.',
       commentFooter: 'React with :+1: to approve or :-1: to reject.',
       reviewerPermissions: ['write', 'admin']
     }
@@ -30360,7 +30361,7 @@ class ReactionManager {
       // Exclude reactions by the token user
       if (reaction.user.id === tokenUser.id) {
         Logger.debug(
-          `Ignoring reaction :${reaction.content}: by ${reaction.user.login} (user is token user)`
+          `Ignoring reaction :${reaction.content}: by ${reaction.user.login} (user is the token user)`
         )
         continue
       }
@@ -30371,7 +30372,7 @@ class ReactionManager {
       )
       if (!permissions.includes(permission)) {
         Logger.debug(
-          `Ignoring reaction :${reaction.content}: by ${reaction.user.login} (user lacks permission)`
+          `Ignoring reaction :${reaction.content}: by ${reaction.user.login} (user lacks required permissions)`
         )
         continue
       }
