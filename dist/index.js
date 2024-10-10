@@ -29906,164 +29906,136 @@ function wrappy (fn, cb) {
 
 /***/ }),
 
-/***/ 3220:
-/***/ ((module) => {
-
-class CommitComment {
-  constructor(id, url, octokit, context) {
-    this.id = id
-    this.url = url
-    this.octokit = octokit
-    this.context = context
-  }
-
-  getCommentId() {
-    return this.id
-  }
-
-  // Create a reaction on a comment
-  // https://octokit.github.io/rest.js/v18/#reactions-create-for-commit-comment
-  // https://docs.github.com/en/rest/reactions/reactions?apiVersion=2022-11-28#create-reaction-for-a-commit-comment
-  async createReaction(content) {
-    const { data: reaction } =
-      await this.octokit.rest.reactions.createForCommitComment({
-        ...this.context.repo,
-        comment_id: this.id,
-        content
-      })
-
-    if (!reaction || !reaction.id) {
-      throw new Error(`Failed to create reaction with content: ${content}`)
-    }
-
-    return reaction
-  }
-
-  // Delete a reaction on a comment
-  // https://octokit.github.io/rest.js/v18/#reactions-delete-for-commit-comment
-  // https://docs.github.com/en/rest/reactions/reactions?apiVersion=2022-11-28#delete-a-commit-comment-reaction
-  async deleteReaction(reactionId) {
-    await this.octokit.rest.reactions.deleteForCommitComment({
-      ...this.context.repo,
-      comment_id: this.id,
-      reaction_id: reactionId
-    })
-  }
-
-  async getReactions() {
-    const { data: reactions } =
-      await this.octokit.rest.reactions.listForCommitComment({
-        ...this.context.repo,
-        comment_id: this.id
-      })
-    return reactions
-  }
-}
-
-module.exports = {
-  CommitComment
-}
-
-
-/***/ }),
-
-/***/ 7936:
+/***/ 9682:
 /***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
 const core = __nccwpck_require__(7484)
-const github = __nccwpck_require__(3228)
-const { CommitComment } = __nccwpck_require__(3220)
+const Logger = __nccwpck_require__(8033)
 
-class ApprovalAction {
-  constructor() {
-    this.token = core.getInput('github-token')
-    this.checkInterval = parseInt(core.getInput('check-interval')) || 10
-    this.timeoutSeconds = parseInt(core.getInput('timeout-seconds')) || 0 // 0 means no timeout
-
-    // https://docs.github.com/en/rest/reactions/reactions?apiVersion=2022-11-28#about-reactions
-    this.approveReaction = '+1'
-    this.rejectReaction = '-1'
-    this.waitReaction = 'eyes'
-    this.successReaction = 'rocket'
-    this.failedReaction = 'confused'
-
-    this.commentHeader = `A repository maintainer needs to approve this workflow.`
-    this.commentBody = `${this.commentHeader}\n\nReact with :${this.approveReaction}: to approve or :${this.rejectReaction}: to reject.`
-    this.octokit = github.getOctokit(this.token)
-    this.context = github.context
+class ApprovalProcess {
+  constructor(gitHubClient, reactionManager, config) {
+    this.gitHubClient = gitHubClient
+    this.reactionManager = reactionManager
+    this.config = config
   }
 
-  async getAuthenticatedUser() {
+  async run() {
+    const prHeadSha = this.gitHubClient.getPullRequestHeadSha()
+    const tokenUser = await this.gitHubClient.getAuthenticatedUser()
+
+    let comment = await this.gitHubClient.findCommitComment(
+      prHeadSha,
+      tokenUser.id,
+      this.config.commentBody
+    )
+    if (!comment) {
+      comment = await this.gitHubClient.createCommitComment(
+        prHeadSha,
+        this.config.commentBody
+      )
+    }
+
+    await this.reactionManager.createReaction(
+      comment.id,
+      this.config.waitReaction
+    )
+    await this.gitHubClient.deleteStalePullRequestComments(
+      this.config.commentHeader
+    )
+    await this.gitHubClient.createPullRequestComment(
+      `${this.config.commentHeader}\n\nSee ${comment.url}`
+    )
+
     try {
-      const query = `query { viewer { databaseId login } }`
-      const { viewer } = await this.octokit.graphql(query)
-      return viewer
+      await this.waitForApproval(comment.id, this.config.checkInterval)
+      await this.reactionManager.createReaction(
+        comment.id,
+        this.config.successReaction
+      )
     } catch (error) {
-      core.error(`Failed to get authenticated user: ${error.message}`)
+      await this.reactionManager.createReaction(
+        comment.id,
+        this.config.failedReaction
+      )
       throw error
     }
   }
 
-  async run() {
-    try {
-      if (!this.context.payload.pull_request) {
-        throw new Error('This action only works on pull requests.')
+  // Wait for approval by checking reactions on a comment
+  async waitForApproval(commentId, interval = 30, timeout = 0) {
+    const startTime = Date.now()
+    Logger.info('Checking for reactions...')
+    for (;;) {
+      if (timeout > 0 && (Date.now() - startTime) / 1000 > timeout) {
+        throw new Error('Approval process timed out')
       }
 
-      const prHeadSha = this.context.payload.pull_request.head.sha
-
-      this.tokenUser = await this.getAuthenticatedUser()
-
-      const existingComment = await this.findCommitComment(
-        prHeadSha,
-        this.tokenUser.databaseId,
-        this.commentBody
+      const reactions = await this.reactionManager.getEligibleReactions(
+        commentId,
+        this.config.reviewerPermissions
       )
 
-      if (existingComment) {
-        core.setOutput('comment-id', existingComment.id)
-        this.commitComment = new CommitComment(
-          existingComment.id,
-          existingComment.url,
-          this.octokit,
-          this.context
-        )
+      const rejectedBy = reactions.find(
+        r => r.content === this.config.rejectReaction
+      )?.user.login
+
+      if (rejectedBy) {
+        Logger.info(`Workflow rejected by ${rejectedBy}`)
+        core.setOutput('rejected-by', rejectedBy)
+        throw new Error(`Workflow rejected by ${rejectedBy}`)
       }
 
-      if (!this.commitComment) {
-        const newComment = await this.createCommitComment(prHeadSha)
+      const approvedBy = reactions.find(
+        r => r.content === this.config.approveReaction
+      )?.user.login
 
-        if (newComment) {
-          core.setOutput('comment-id', newComment.id)
-          this.commitComment = new CommitComment(
-            newComment.id,
-            newComment.url,
-            this.octokit,
-            this.context
-          )
-        }
+      if (approvedBy) {
+        Logger.info(`Workflow approved by ${approvedBy}`)
+        core.setOutput('approved-by', approvedBy)
+        return
       }
 
-      if (!this.commitComment) {
-        throw new Error('Failed to create or find commit comment.')
-      }
-
-      await this.setReaction(this.waitReaction)
-      await this.resetPRComment(this.commentHeader, this.commitComment.url)
-      await this.waitForApproval(this.commitComment, this.checkInterval)
-      await this.setReaction(this.successReaction)
-    } catch (error) {
-      await this.setReaction(this.failedReaction)
-      core.setFailed(error.message)
-      throw error // Re-throw the error so it can be caught in tests
+      Logger.debug('Waiting for reactions...')
+      await new Promise(resolve => setTimeout(resolve, interval * 1000))
     }
+  }
+}
+
+module.exports = { ApprovalProcess }
+
+
+/***/ }),
+
+/***/ 5706:
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+
+const Logger = __nccwpck_require__(8033)
+
+class GitHubClient {
+  constructor(octokit, context) {
+    this.octokit = octokit
+    this.context = context
+  }
+
+  getPullRequestHeadSha() {
+    return this.context.payload.pull_request.head.sha
+  }
+
+  getPullRequestAuthors() {
+    return this.context.payload.pull_request.commits.map(c => c.author.id)
+  }
+
+  async getAuthenticatedUser() {
+    const query = `query { viewer { databaseId login } }`
+    const { viewer } = await this.octokit.graphql(query)
+    return { login: viewer.login, id: viewer.databaseId }
   }
 
   // Find existing commit comment with the following criteria:
   // - body matches commentBody
   // - created_at matches updated_at
   // - user matches the provided token
-  async findCommitComment(commitSha, userId, body = this.commentBody) {
+  async findCommitComment(commitSha, userId, body) {
     const { data: comments } =
       await this.octokit.rest.repos.listCommentsForCommit({
         ...this.context.repo,
@@ -30077,11 +30049,29 @@ class ApprovalAction {
     )
 
     if (!comment || !comment.id) {
-      core.info('No matching commit comment found.')
+      Logger.info('No matching commit comment found.')
       return null
     }
 
-    core.info(`Found existing commit comment: ${comment.url}`)
+    Logger.info(`Found existing commit comment: ${comment.url}`)
+    return comment
+  }
+
+  // Create a new commit comment with the provided commentBody
+  async createCommitComment(commitSha, body) {
+    const { data: comment } = await this.octokit.rest.repos.createCommitComment(
+      {
+        ...this.context.repo,
+        commit_sha: commitSha,
+        body
+      }
+    )
+
+    if (!comment || !comment.id) {
+      throw new Error('Failed to create commit comment for approval.')
+    }
+
+    Logger.info(`Created new commit comment: ${comment.url}`)
     return comment
   }
 
@@ -30101,33 +30091,15 @@ class ApprovalAction {
     )
 
     if (!comment || !comment.id) {
-      core.info('No matching PR comment found.')
+      Logger.info('No matching PR comment found.')
       return null
     }
 
-    core.info(`Found existing PR comment: ${comment.url}`)
+    Logger.info(`Found existing PR comment: ${comment.url}`)
     return comment
   }
 
-  // Create a new commit comment with the provided commentBody
-  async createCommitComment(commitSha, body = this.commentBody) {
-    const { data: comment } = await this.octokit.rest.repos.createCommitComment(
-      {
-        ...this.context.repo,
-        commit_sha: commitSha,
-        body
-      }
-    )
-
-    if (!comment || !comment.id) {
-      throw new Error('Failed to create commit comment for approval.')
-    }
-
-    core.info(`Created new commit comment: ${comment.url}`)
-    return comment
-  }
-
-  async createPrComment(body) {
+  async createPullRequestComment(body) {
     const { data: comment } = await this.octokit.rest.issues.createComment({
       ...this.context.repo,
       issue_number: this.context.payload.pull_request.number,
@@ -30138,69 +30110,33 @@ class ApprovalAction {
       throw new Error('Failed to create PR comment for approval.')
     }
 
-    core.info(`Created new PR comment: ${comment.url}`)
+    Logger.info(`Created new PR comment: ${comment.url}`)
     return comment
   }
 
-  async resetPRComment(header, url) {
+  async listPullRequestComments() {
     const { data: comments } = await this.octokit.rest.issues.listComments({
       ...this.context.repo,
       issue_number: this.context.payload.pull_request.number
     })
+    return comments
+  }
 
-    const filteredComments = comments.data.filter(
+  async deleteStalePullRequestComments(startsWith) {
+    const comments = await this.listPullRequestComments()
+    const userId = (await this.getAuthenticatedUser()).id
+    const filteredComments = comments.filter(
       c =>
-        c.body.startsWith(header) &&
-        c.user.id === this.tokenUser.databaseId &&
+        c.body.startsWith(startsWith) &&
+        c.user.id === userId &&
         c.created_at === c.updated_at
     )
-
-    await this.createPrComment(`${header}\n\nSee ${url}`)
-
-    core.info(`Created new PR comment: ${header}`)
 
     for (const comment of filteredComments) {
       await this.octokit.rest.issues.deleteComment({
         ...this.context.repo,
         comment_id: comment.id
       })
-    }
-  }
-
-  // Wait for approval by checking reactions on a comment
-  async waitForApproval(interval = this.checkInterval) {
-    const startTime = Date.now()
-    core.info('Checking for reactions...')
-    for (;;) {
-      if (
-        this.timeoutSeconds > 0 &&
-        (Date.now() - startTime) / 1000 > this.timeoutSeconds
-      ) {
-        throw new Error('Approval process timed out')
-      }
-
-      const reactions = await this.getEligibleReactions()
-
-      const rejectedBy = reactions.find(r => r.content === this.rejectReaction)
-        ?.user.login
-
-      if (rejectedBy) {
-        core.info(`Workflow rejected by ${rejectedBy}`)
-        core.setOutput('rejected-by', rejectedBy)
-        throw new Error(`Workflow rejected by ${rejectedBy}`)
-      }
-
-      const approvedBy = reactions.find(r => r.content === this.approveReaction)
-        ?.user.login
-
-      if (approvedBy) {
-        core.info(`Workflow approved by ${approvedBy}`)
-        core.setOutput('approved-by', approvedBy)
-        return
-      }
-
-      core.debug('Waiting for reactions...')
-      await new Promise(resolve => setTimeout(resolve, interval * 1000))
     }
   }
 
@@ -30213,60 +30149,154 @@ class ApprovalAction {
     return permissionData.permission
   }
 
-  // Eligible reactions are those by users with the required permissions
-  async getEligibleReactions(permissions = ['write', 'admin']) {
-    if (!this.commitComment) {
-      throw new Error(`Commit comment not found`)
-    }
-    const reactions = await this.commitComment.getReactions()
-    const filtered = []
-
-    for (const reaction of reactions) {
-      // Get IDs of all commit authors
-      const commitAuthors = this.context.payload.pull_request.commits.map(
-        c => c.author.id
-      )
-
-      // Exclude reactions by commit authors
-      if (commitAuthors.includes(reaction.user.id)) {
-        core.debug(
-          `Ignoring reaction :${reaction.content}: by ${reaction.user.login} (user is a commit author)`
-        )
-        continue
-      }
-
-      // Exclude reactions by the token user
-      if (reaction.user.id === this.tokenUser.databaseId) {
-        core.debug(
-          `Ignoring reaction :${reaction.content}: by ${reaction.user.login} (user is token user)`
-        )
-        continue
-      }
-
-      // Exclude reactions by users without the required permissions
-      const permission = await this.getUserPermission(reaction.user.login)
-      if (!permissions.includes(permission)) {
-        core.debug(
-          `Ignoring reaction :${reaction.content}: by ${reaction.user.login} (user lacks permission)`
-        )
-        continue
-      }
-
-      core.info(
-        `Found reaction :${reaction.content}: by ${reaction.user.login}`
-      )
-      filtered.push(reaction)
-    }
-
-    return filtered
+  // Create a reaction on a comment
+  // https://octokit.github.io/rest.js/v18/#reactions-create-for-commit-comment
+  // https://docs.github.com/en/rest/reactions/reactions?apiVersion=2022-11-28#create-reaction-for-a-commit-comment
+  async createReactionForCommitComment(commentId, content) {
+    const { data: reaction } =
+      await this.octokit.rest.reactions.createForCommitComment({
+        ...this.context.repo,
+        comment_id: commentId,
+        content
+      })
+    return reaction
   }
 
-  async getReactionsByUser(id) {
-    const reactions = await this.commitComment.getReactions()
+  // Delete a reaction on a comment
+  // https://octokit.github.io/rest.js/v18/#reactions-delete-for-commit-comment
+  // https://docs.github.com/en/rest/reactions/reactions?apiVersion=2022-11-28#delete-a-commit-comment-reaction
+  async deleteReactionForCommitComment(commentId, reactionId) {
+    await this.octokit.rest.reactions.deleteForCommitComment({
+      ...this.context.repo,
+      comment_id: commentId,
+      reaction_id: reactionId
+    })
+  }
+
+  async getReactionsForCommitComment(commentId) {
+    const { data: reactions } =
+      await this.octokit.rest.reactions.listForCommitComment({
+        ...this.context.repo,
+        comment_id: commentId
+      })
+    return reactions
+  }
+}
+
+module.exports = { GitHubClient }
+
+
+/***/ }),
+
+/***/ 5105:
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+
+/**
+ * The entrypoint for the action.
+ */
+const core = __nccwpck_require__(7484)
+const github = __nccwpck_require__(3228)
+const { GitHubClient } = __nccwpck_require__(5706)
+const { ReactionManager } = __nccwpck_require__(2141)
+const { ApprovalProcess } = __nccwpck_require__(9682)
+
+async function run() {
+  try {
+    const config = {
+      token: core.getInput('github-token'),
+      checkInterval: parseInt(core.getInput('check-interval')) || 10,
+      timeoutSeconds: parseInt(core.getInput('timeout-seconds')) || 0,
+      approveReaction: '+1',
+      rejectReaction: '-1',
+      waitReaction: 'eyes',
+      successReaction: 'rocket',
+      failedReaction: 'confused',
+      commentHeader: 'A repository maintainer needs to approve this workflow.',
+      commentBody: 'React with :+1: to approve or :-1: to reject.',
+      reviewerPermissions: ['write', 'admin']
+    }
+
+    const octokit = github.getOctokit(config.token)
+    const gitHubClient = new GitHubClient(octokit, github.context)
+    const reactionManager = new ReactionManager(gitHubClient)
+    const approvalProcess = new ApprovalProcess(
+      gitHubClient,
+      reactionManager,
+      config
+    )
+
+    await approvalProcess.run()
+  } catch (error) {
+    core.setFailed(error.message)
+  }
+}
+
+run()
+
+module.exports = { run }
+
+
+/***/ }),
+
+/***/ 8033:
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+
+const core = __nccwpck_require__(7484)
+
+class Logger {
+  static info(message) {
+    core.info(message)
+  }
+
+  static warning(message) {
+    core.warning(message)
+  }
+
+  static error(message) {
+    core.error(message)
+  }
+
+  static debug(message) {
+    core.debug(message)
+  }
+}
+
+module.exports = Logger
+
+
+/***/ }),
+
+/***/ 2141:
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+
+const Logger = __nccwpck_require__(8033)
+
+class ReactionManager {
+  constructor(gitHubClient) {
+    this.gitHubClient = gitHubClient
+  }
+
+  async createReaction(commentId, content) {
+    return this.gitHubClient.createReactionForCommitComment(commentId, content)
+  }
+
+  async deleteReaction(commentId, reactionId) {
+    return this.gitHubClient.deleteReactionForCommitComment(
+      commentId,
+      reactionId
+    )
+  }
+
+  async getReactions(commentId) {
+    return this.gitHubClient.getReactionsForCommitComment(commentId)
+  }
+
+  async getReactionsByUser(commitId, userId) {
+    const reactions = await this.getReactions(commitId)
     const filtered = []
 
     for (const reaction of reactions) {
-      if (reaction.user.id === id) {
+      if (reaction.user.id === userId) {
         filtered.push(reaction)
       }
     }
@@ -30274,32 +30304,68 @@ class ApprovalAction {
     return filtered
   }
 
-  async removeReactionsByUser(id) {
-    const actorReactions = await this.getReactionsByUser(id)
+  async removeReactionsByUser(commitId, userId) {
+    const actorReactions = await this.getReactionsByUser(commitId, userId)
     for (const reaction of actorReactions) {
-      this.commitComment.deleteReaction(reaction.id)
+      this.deleteReaction(commitId, reaction.id)
     }
   }
 
   // Set a single reaction on a comment, removing other reactions by this actor
-  async setReaction(content) {
-    if (!this.commitComment) {
-      // nothing to do
-      return
+  async setReaction(commitId, userId, content) {
+    await this.removeReactionsByUser(commitId, userId)
+    return this.createReaction(commitId, content)
+  }
+
+  // Eligible reactions are those by users with the required permissions
+  async getEligibleReactions(commentId, permissions = ['write', 'admin']) {
+    const reactions = await this.getReactions(commentId)
+    const filtered = []
+
+    const tokenUser = await this.gitHubClient.getAuthenticatedUser()
+
+    for (const reaction of reactions) {
+      // Get IDs of all commit authors
+      const authors = this.gitHubClient.getPullRequestAuthors()
+
+      // Exclude reactions by commit authors
+      if (authors.includes(reaction.user.id)) {
+        Logger.debug(
+          `Ignoring reaction :${reaction.content}: by ${reaction.user.login} (user is a commit author)`
+        )
+        continue
+      }
+
+      // Exclude reactions by the token user
+      if (reaction.user.id === tokenUser.id) {
+        Logger.debug(
+          `Ignoring reaction :${reaction.content}: by ${reaction.user.login} (user is token user)`
+        )
+        continue
+      }
+
+      // Exclude reactions by users without the required permissions
+      const permission = await this.gitHubClient.getUserPermission(
+        reaction.user.login
+      )
+      if (!permissions.includes(permission)) {
+        Logger.debug(
+          `Ignoring reaction :${reaction.content}: by ${reaction.user.login} (user lacks permission)`
+        )
+        continue
+      }
+
+      Logger.info(
+        `Found reaction :${reaction.content}: by ${reaction.user.login}`
+      )
+      filtered.push(reaction)
     }
-    if (this.tokenUser) {
-      await this.removeReactionsByUser(this.tokenUser.databaseId)
-    }
-    return this.commitComment.createReaction(content)
+
+    return filtered
   }
 }
 
-const action = new ApprovalAction()
-
-module.exports = {
-  ApprovalAction,
-  action
-}
+module.exports = { ReactionManager }
 
 
 /***/ }),
@@ -32207,15 +32273,13 @@ module.exports = parseParams
 /******/ 	if (typeof __nccwpck_require__ !== 'undefined') __nccwpck_require__.ab = __dirname + "/";
 /******/ 	
 /************************************************************************/
-var __webpack_exports__ = {};
-/**
- * The entrypoint for the action.
- */
-const { action } = __nccwpck_require__(7936)
-
-action.run()
-
-module.exports = __webpack_exports__;
+/******/ 	
+/******/ 	// startup
+/******/ 	// Load entry module and return exports
+/******/ 	// This entry module is referenced by other modules so it can't be inlined
+/******/ 	var __webpack_exports__ = __nccwpck_require__(5105);
+/******/ 	module.exports = __webpack_exports__;
+/******/ 	
 /******/ })()
 ;
 //# sourceMappingURL=index.js.map
