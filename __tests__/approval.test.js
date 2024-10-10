@@ -24,7 +24,7 @@ describe('ApprovalProcess', () => {
     }
 
     mockReactionManager = {
-      createReaction: jest.fn(),
+      setReaction: jest.fn(),
       getEligibleReactions: jest.fn()
     }
 
@@ -77,8 +77,9 @@ describe('ApprovalProcess', () => {
         'test-sha',
         commentBody
       )
-      expect(mockReactionManager.createReaction).toHaveBeenCalledWith(
+      expect(mockReactionManager.setReaction).toHaveBeenCalledWith(
         'test-comment-id',
+        'test-user-id',
         mockConfig.waitReaction
       )
       expect(
@@ -99,8 +100,9 @@ describe('ApprovalProcess', () => {
       await approvalProcess.run()
 
       expect(mockGitHubClient.createCommitComment).not.toHaveBeenCalled()
-      expect(mockReactionManager.createReaction).toHaveBeenCalledWith(
+      expect(mockReactionManager.setReaction).toHaveBeenCalledWith(
         'existing-comment-id',
+        'test-user-id',
         mockConfig.waitReaction
       )
     })
@@ -108,8 +110,9 @@ describe('ApprovalProcess', () => {
     test('creates success reaction when approval is successful', async () => {
       await approvalProcess.run()
 
-      expect(mockReactionManager.createReaction).toHaveBeenCalledWith(
+      expect(mockReactionManager.setReaction).toHaveBeenCalledWith(
         'test-comment-id',
+        'test-user-id',
         mockConfig.successReaction
       )
     })
@@ -121,8 +124,9 @@ describe('ApprovalProcess', () => {
 
       await expect(approvalProcess.run()).rejects.toThrow('Approval failed')
 
-      expect(mockReactionManager.createReaction).toHaveBeenCalledWith(
+      expect(mockReactionManager.setReaction).toHaveBeenCalledWith(
         'test-comment-id',
+        'test-user-id',
         mockConfig.failedReaction
       )
     })

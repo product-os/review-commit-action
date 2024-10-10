@@ -29939,8 +29939,9 @@ class ApprovalProcess {
       )
     }
 
-    await this.reactionManager.createReaction(
+    await this.reactionManager.setReaction(
       comment.id,
+      tokenUser.id,
       this.config.waitReaction
     )
     await this.gitHubClient.deleteStalePullRequestComments(
@@ -29954,13 +29955,15 @@ class ApprovalProcess {
 
     try {
       await this.waitForApproval(comment.id, this.config.checkInterval)
-      await this.reactionManager.createReaction(
+      await this.reactionManager.setReaction(
         comment.id,
+        tokenUser.id,
         this.config.successReaction
       )
     } catch (error) {
-      await this.reactionManager.createReaction(
+      await this.reactionManager.setReaction(
         comment.id,
+        tokenUser.id,
         this.config.failedReaction
       )
       throw error
