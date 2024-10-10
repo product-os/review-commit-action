@@ -29939,6 +29939,8 @@ class ApprovalProcess {
       )
     }
 
+    core.setOutput('comment-id', comment.id)
+
     await this.reactionManager.setReaction(
       comment.id,
       tokenUser.id,
@@ -30033,7 +30035,7 @@ class GitHubClient {
     return commits.map(c => c.author.id)
   }
 
-  // https://docs.github.com/en/rest/pulls/pulls?apiVersion=2022-11-28#list-commits-on-a-pull-request
+  // https://docs.github.com/en/rest/pulls/pulls#list-commits-on-a-pull-request
   async getPullRequestCommits() {
     const { data: commits } = await this.octokit.rest.pulls.listCommits({
       ...this.context.repo,
@@ -30075,6 +30077,8 @@ class GitHubClient {
   }
 
   // Create a new commit comment with the provided body
+  // https://octokit.github.io/rest.js/v21/#repos-create-commit-comment
+  // https://docs.github.com/rest/commits/comments#create-a-commit-comment
   async createCommitComment(commitSha, body) {
     const { data: comment } = await this.octokit.rest.repos.createCommitComment(
       {
@@ -30157,6 +30161,8 @@ class GitHubClient {
     }
   }
 
+  // https://octokit.github.io/rest.js/v21/#repos-get-collaborator-permission-level
+  // https://docs.github.com/en/rest/collaborators/collaborators#get-repository-permissions-for-a-user
   async getUserPermission(username) {
     const { data: permissionData } =
       await this.octokit.rest.repos.getCollaboratorPermissionLevel({
@@ -30168,7 +30174,7 @@ class GitHubClient {
 
   // Create a reaction on a comment
   // https://octokit.github.io/rest.js/v18/#reactions-create-for-commit-comment
-  // https://docs.github.com/en/rest/reactions/reactions?apiVersion=2022-11-28#create-reaction-for-a-commit-comment
+  // https://docs.github.com/en/rest/reactions/reactions#create-reaction-for-a-commit-comment
   async createReactionForCommitComment(commentId, content) {
     const { data: reaction } =
       await this.octokit.rest.reactions.createForCommitComment({
@@ -30181,7 +30187,7 @@ class GitHubClient {
 
   // Delete a reaction on a comment
   // https://octokit.github.io/rest.js/v18/#reactions-delete-for-commit-comment
-  // https://docs.github.com/en/rest/reactions/reactions?apiVersion=2022-11-28#delete-a-commit-comment-reaction
+  // https://docs.github.com/en/rest/reactions/reactions#delete-a-commit-comment-reaction
   async deleteReactionForCommitComment(commentId, reactionId) {
     await this.octokit.rest.reactions.deleteForCommitComment({
       ...this.context.repo,

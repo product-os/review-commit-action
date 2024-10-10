@@ -77,6 +77,10 @@ describe('ApprovalProcess', () => {
         'test-sha',
         commentBody
       )
+      expect(core.setOutput).toHaveBeenCalledWith(
+        'comment-id',
+        'test-comment-id'
+      )
       expect(mockReactionManager.setReaction).toHaveBeenCalledWith(
         'test-comment-id',
         'test-user-id',
@@ -100,6 +104,10 @@ describe('ApprovalProcess', () => {
       await approvalProcess.run()
 
       expect(mockGitHubClient.createCommitComment).not.toHaveBeenCalled()
+      expect(core.setOutput).toHaveBeenCalledWith(
+        'comment-id',
+        'existing-comment-id'
+      )
       expect(mockReactionManager.setReaction).toHaveBeenCalledWith(
         'existing-comment-id',
         'test-user-id',

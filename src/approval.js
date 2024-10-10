@@ -28,6 +28,8 @@ class ApprovalProcess {
       )
     }
 
+    core.setOutput('comment-id', comment.id)
+
     await this.reactionManager.setReaction(
       comment.id,
       tokenUser.id,
