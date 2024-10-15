@@ -66,6 +66,10 @@ describe('GitHubClient', () => {
     expect(gitHubClient.getPullRequestHeadSha()).toBe('testSha')
   })
 
+  test('getPullRequestMergeRef returns the correct ref', () => {
+    expect(gitHubClient.getPullRequestMergeRef()).toBe('pull/1/merge')
+  })
+
   test('getPullRequestAuthors returns the correct author IDs', async () => {
     const mockCommits = [
       {

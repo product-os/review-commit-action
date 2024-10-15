@@ -16,6 +16,8 @@ describe('ApprovalProcess', () => {
 
     mockGitHubClient = {
       getPullRequestHeadSha: jest.fn(),
+      getPullRequestMergeRef: jest.fn(),
+      getRefSha: jest.fn(),
       getAuthenticatedUser: jest.fn(),
       getPullRequestRepository: jest.fn(),
       findCommitComment: jest.fn(),
@@ -51,6 +53,8 @@ describe('ApprovalProcess', () => {
   describe('run', () => {
     beforeEach(() => {
       mockGitHubClient.getPullRequestHeadSha.mockReturnValue('test-sha')
+      mockGitHubClient.getPullRequestMergeRef.mockReturnValue('pull/1/merge')
+      mockGitHubClient.getRefSha.mockResolvedValue('test-sha')
       mockGitHubClient.getAuthenticatedUser.mockResolvedValue({
         id: 'test-user-id'
       })
