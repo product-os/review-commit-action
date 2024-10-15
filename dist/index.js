@@ -29920,7 +29920,8 @@ class ApprovalProcess {
   }
 
   async run() {
-    const prHeadSha = this.gitHubClient.getPullRequestHeadSha()
+    const ref = this.gitHubClient.getPullRequestMergeRef()
+    const commitSha = await this.gitHubClient.getRefSha(ref)
     const tokenUser = await this.gitHubClient.getAuthenticatedUser()
 
     // used for validation purposes only
@@ -29930,14 +29931,15 @@ class ApprovalProcess {
       this.config.commentHeader,
       this.config.commentFooter
     ].join('\n\n')
+
     let comment = await this.gitHubClient.findCommitComment(
-      prHeadSha,
+      commitSha,
       tokenUser.id,
       commitCommentBody
     )
     if (!comment) {
       comment = await this.gitHubClient.createCommitComment(
-        prHeadSha,
+        commitSha,
         commitCommentBody
       )
     }
@@ -30034,6 +30036,23 @@ class GitHubClient {
       throw new Error('No pull request found in context!')
     }
     return this.context.payload.pull_request.head.sha
+  }
+
+  getPullRequestMergeRef() {
+    if (!this.context.payload.pull_request) {
+      throw new Error('No pull request found in context!')
+    }
+    return `pull/${this.context.payload.pull_request.number}/merge`
+  }
+
+  // https://octokit.github.io/rest.js/v18/#git-get-ref
+  // https://docs.github.com/en/rest/git/refs?apiVersion=2022-11-28#get-a-reference
+  async getRefSha(ref) {
+    const { data } = await this.octokit.rest.git.getRef({
+      ...this.context.repo,
+      ref
+    })
+    return data.object.sha
   }
 
   async getPullRequestAuthors() {

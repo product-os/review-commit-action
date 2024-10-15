@@ -13,6 +13,23 @@ class GitHubClient {
     return this.context.payload.pull_request.head.sha
   }
 
+  getPullRequestMergeRef() {
+    if (!this.context.payload.pull_request) {
+      throw new Error('No pull request found in context!')
+    }
+    return `pull/${this.context.payload.pull_request.number}/merge`
+  }
+
+  // https://octokit.github.io/rest.js/v18/#git-get-ref
+  // https://docs.github.com/en/rest/git/refs?apiVersion=2022-11-28#get-a-reference
+  async getRefSha(ref) {
+    const { data } = await this.octokit.rest.git.getRef({
+      ...this.context.repo,
+      ref
+    })
+    return data.object.sha
+  }
+
   async getPullRequestAuthors() {
     const commits = await this.getPullRequestCommits()
     return commits.map(c => c.author.id)

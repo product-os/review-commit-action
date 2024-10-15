@@ -9,7 +9,8 @@ class ApprovalProcess {
   }
 
   async run() {
-    const prHeadSha = this.gitHubClient.getPullRequestHeadSha()
+    const ref = this.gitHubClient.getPullRequestMergeRef()
+    const commitSha = await this.gitHubClient.getRefSha(ref)
     const tokenUser = await this.gitHubClient.getAuthenticatedUser()
 
     // used for validation purposes only
@@ -19,14 +20,15 @@ class ApprovalProcess {
       this.config.commentHeader,
       this.config.commentFooter
     ].join('\n\n')
+
     let comment = await this.gitHubClient.findCommitComment(
-      prHeadSha,
+      commitSha,
       tokenUser.id,
       commitCommentBody
     )
     if (!comment) {
       comment = await this.gitHubClient.createCommitComment(
-        prHeadSha,
+        commitSha,
         commitCommentBody
       )
     }
