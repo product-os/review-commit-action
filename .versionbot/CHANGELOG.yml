@@ -1,4 +1,57 @@
 - commits:
+    - subject: Use merge commit ref for reviews
+      hash: c16bf030cc86497a9ad40cdde28c62baafffc56e
+      body: |
+        This makes it less likely that a malicious change would
+        be buried in an earlier commit, and missed when only
+        reviewing the tip of HEAD.
+      footer:
+        CHange-type: patch
+        change-type: patch
+        Signed-off-by: Kyle Harding <kyle@balena.io>
+        signed-off-by: Kyle Harding <kyle@balena.io>
+      author: Kyle Harding
+      nested: []
+    - subject: Add exceptions to linters for markdown and natural language
+      hash: 11e4181028a50a339e455633a9dd699db0435340
+      body: ""
+      footer:
+        Change-type: patch
+        change-type: patch
+        Signed-off-by: Kyle Harding <kyle@balena.io>
+        signed-off-by: Kyle Harding <kyle@balena.io>
+      author: Kyle Harding
+      nested: []
+    - subject: Throw if top-level repo name does not match PR base context
+      hash: 820932c55973b8659756a9911bde0d50f8beb651
+      body: |
+        It is unclear from the docs whether the top level context.repo
+        property will always reflect the target/base of a PR from a fork,
+        or the forked repo.
+
+        So to be safe until we can test all scenarios, throw an exception
+        if the values do not match.
+      footer:
+        Change-type: patch
+        change-type: patch
+        Signed-off-by: Kyle Harding <kyle@balena.io>
+        signed-off-by: Kyle Harding <kyle@balena.io>
+      author: Kyle Harding
+      nested: []
+    - subject: Update docs and fix linting of files
+      hash: 00db951f1e3b87c62df98dec56018a5a8d709518
+      body: ""
+      footer:
+        Change-type: patch
+        change-type: patch
+        Signed-off-by: Kyle Harding <kyle@balena.io>
+        signed-off-by: Kyle Harding <kyle@balena.io>
+      author: Kyle Harding
+      nested: []
+  version: 0.0.6
+  title: ""
+  date: 2024-10-15T20:01:57.433Z
+- commits:
     - subject: Disallow reviews by authors by default
       hash: a3e59e82451e4b056b7f0729e6b1d20a2fbd5955
       body: ""
