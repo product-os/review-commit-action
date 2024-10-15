@@ -136,11 +136,6 @@ Contributions to improve the action are welcome! Please follow these steps:
 Please make sure to update tests as appropriate and adhere to the existing
 coding style.
 
-## License
-
-This project is licensed under Apache 2.0 - see the [LICENSE](LICENSE) file for
-details.
-
 ## Support
 
 If you encounter any problems or have any questions, please open an issue in the
