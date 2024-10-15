@@ -17,6 +17,7 @@ describe('ApprovalProcess', () => {
     mockGitHubClient = {
       getPullRequestHeadSha: jest.fn(),
       getAuthenticatedUser: jest.fn(),
+      getPullRequestRepository: jest.fn(),
       findCommitComment: jest.fn(),
       createCommitComment: jest.fn(),
       deleteStalePullRequestComments: jest.fn(),
@@ -53,6 +54,7 @@ describe('ApprovalProcess', () => {
       mockGitHubClient.getAuthenticatedUser.mockResolvedValue({
         id: 'test-user-id'
       })
+      mockGitHubClient.getPullRequestRepository.mockReturnValue(null)
       mockGitHubClient.findCommitComment.mockResolvedValue(null)
       mockGitHubClient.createCommitComment.mockResolvedValue({
         id: 'test-comment-id',

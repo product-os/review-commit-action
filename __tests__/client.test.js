@@ -37,9 +37,18 @@ describe('GitHubClient', () => {
     }
 
     mockContext = {
-      repo: { owner: 'testOwner', repo: 'testRepo' },
+      repo: {
+        owner: 'testOwner',
+        repo: 'testRepo'
+      },
       payload: {
         pull_request: {
+          base: {
+            repo: {
+              owner: { login: 'testOwner' },
+              name: 'testRepo'
+            }
+          },
           head: { sha: 'testSha' },
           number: 1,
           commits: [
