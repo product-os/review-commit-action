@@ -1,4 +1,16 @@
 - commits:
+    - subject: Allow custom actions on pull_request_trigger
+      hash: ee2e2732675ae77572be6683001b4906852d6949
+      body: ""
+      footer:
+        Change-type: patch
+        change-type: patch
+      author: Kyle Harding
+      nested: []
+  version: 0.0.7
+  title: ""
+  date: 2024-10-15T23:01:10.712Z
+- commits:
     - subject: Use merge commit ref for reviews
       hash: c16bf030cc86497a9ad40cdde28c62baafffc56e
       body: |
