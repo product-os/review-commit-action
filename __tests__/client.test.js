@@ -1,9 +1,7 @@
-const { run } = require('jest')
+const core = require('@actions/core')
 const { GitHubClient } = require('../src/client')
-const Logger = require('../src/logger')
 
 jest.mock('@actions/core')
-jest.mock('../src/logger')
 
 describe('GitHubClient', () => {
   let gitHubClient
@@ -137,7 +135,7 @@ describe('GitHubClient', () => {
       body: 'Test comment body',
       issue_number: 1
     })
-    expect(Logger.info).toHaveBeenCalledWith(
+    expect(core.info).toHaveBeenCalledWith(
       `Created new issue comment: ${mockComment.url}`
     )
   })
@@ -183,7 +181,7 @@ describe('GitHubClient', () => {
       'Non-existent PR comment'
     )
     expect(comment).toBeNull()
-    expect(Logger.info).toHaveBeenCalledWith('No matching issue comment found.')
+    expect(core.info).toHaveBeenCalledWith('No matching issue comment found.')
   })
 
   test('createIssueComment creates a new PR comment', async () => {
@@ -202,7 +200,7 @@ describe('GitHubClient', () => {
       issue_number: 1,
       body: 'Test PR comment body'
     })
-    expect(Logger.info).toHaveBeenCalledWith(
+    expect(core.info).toHaveBeenCalledWith(
       `Created new issue comment: ${mockComment.url}`
     )
   })

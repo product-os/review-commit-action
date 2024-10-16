@@ -1,4 +1,4 @@
-const Logger = require('./logger')
+const core = require('@actions/core')
 
 class ReactionManager {
   constructor(gitHubClient) {
@@ -66,7 +66,7 @@ class ReactionManager {
 
       // Exclude reactions by commit authors
       if (!authorsCanReview && authors.includes(reaction.user.id)) {
-        Logger.debug(
+        core.debug(
           `Ignoring reaction :${reaction.content}: by ${reaction.user.login} (user is a commit author)`
         )
         continue
@@ -74,7 +74,7 @@ class ReactionManager {
 
       // Exclude reactions by the token user
       if (reaction.user.id === tokenUser.id) {
-        Logger.debug(
+        core.debug(
           `Ignoring reaction :${reaction.content}: by ${reaction.user.login} (user is the token user)`
         )
         continue
@@ -85,13 +85,13 @@ class ReactionManager {
         reaction.user.login
       )
       if (!permissions.includes(permission)) {
-        Logger.debug(
+        core.debug(
           `Ignoring reaction :${reaction.content}: by ${reaction.user.login} (user lacks required permissions)`
         )
         continue
       }
 
-      Logger.info(
+      core.info(
         `Found reaction :${reaction.content}: by ${reaction.user.login}`
       )
       filtered.push(reaction)

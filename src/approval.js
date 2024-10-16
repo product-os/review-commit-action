@@ -1,5 +1,4 @@
 const core = require('@actions/core')
-const Logger = require('./logger')
 
 class ApprovalProcess {
   constructor(gitHubClient, reactionManager, config) {
@@ -55,7 +54,7 @@ class ApprovalProcess {
 
   // Wait for approval by checking reactions on a comment
   async waitForApproval(commentId, interval = 30) {
-    Logger.info('Checking for reactions...')
+    core.info('Waiting for reactions on comment ID:', commentId)
     for (;;) {
       const reactions = await this.reactionManager.getEligibleReactions(
         commentId,
@@ -68,7 +67,7 @@ class ApprovalProcess {
       )?.user.login
 
       if (rejectedBy) {
-        Logger.info(`Workflow rejected by ${rejectedBy}`)
+        // core.info(`Workflow rejected by ${rejectedBy}`)
         core.setOutput('rejected-by', rejectedBy)
         throw new Error(`Workflow rejected by ${rejectedBy}`)
       }
@@ -78,12 +77,12 @@ class ApprovalProcess {
       )?.user.login
 
       if (approvedBy) {
-        Logger.info(`Workflow approved by ${approvedBy}`)
         core.setOutput('approved-by', approvedBy)
+        core.info(`Workflow approved by ${approvedBy}`)
         return
       }
 
-      Logger.debug('Waiting for reactions...')
+      core.debug('Waiting for reactions...')
       await new Promise(resolve => setTimeout(resolve, interval * 1000))
     }
   }

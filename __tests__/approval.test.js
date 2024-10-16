@@ -1,9 +1,7 @@
 const core = require('@actions/core')
 const { ApprovalProcess } = require('../src/approval')
-const Logger = require('../src/logger')
 
 jest.mock('@actions/core')
-jest.mock('../src/logger')
 
 describe('ApprovalProcess', () => {
   let approvalProcess
@@ -127,7 +125,7 @@ describe('ApprovalProcess', () => {
       await waitPromise
 
       expect(core.setOutput).toHaveBeenCalledWith('approved-by', 'approver')
-      expect(Logger.info).toHaveBeenCalledWith('Workflow approved by approver')
+      expect(core.info).toHaveBeenCalledWith('Workflow approved by approver')
     })
 
     test('throws an error when rejected', async () => {
@@ -161,7 +159,7 @@ describe('ApprovalProcess', () => {
       await waitPromise
 
       expect(mockReactionManager.getEligibleReactions).toHaveBeenCalledTimes(3)
-      expect(Logger.debug).toHaveBeenCalledWith('Waiting for reactions...')
+      expect(core.debug).toHaveBeenCalledWith('Waiting for reactions...')
       expect(core.setOutput).toHaveBeenCalledWith('approved-by', 'approver')
     }, 2000) // Set test timeout to 2 seconds
   })

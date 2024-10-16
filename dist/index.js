@@ -29910,7 +29910,6 @@ function wrappy (fn, cb) {
 /***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
 const core = __nccwpck_require__(7484)
-const Logger = __nccwpck_require__(8033)
 
 class ApprovalProcess {
   constructor(gitHubClient, reactionManager, config) {
@@ -29966,7 +29965,7 @@ class ApprovalProcess {
 
   // Wait for approval by checking reactions on a comment
   async waitForApproval(commentId, interval = 30) {
-    Logger.info('Checking for reactions...')
+    core.info('Waiting for reactions on comment ID:', commentId)
     for (;;) {
       const reactions = await this.reactionManager.getEligibleReactions(
         commentId,
@@ -29979,7 +29978,7 @@ class ApprovalProcess {
       )?.user.login
 
       if (rejectedBy) {
-        Logger.info(`Workflow rejected by ${rejectedBy}`)
+        // core.info(`Workflow rejected by ${rejectedBy}`)
         core.setOutput('rejected-by', rejectedBy)
         throw new Error(`Workflow rejected by ${rejectedBy}`)
       }
@@ -29989,12 +29988,12 @@ class ApprovalProcess {
       )?.user.login
 
       if (approvedBy) {
-        Logger.info(`Workflow approved by ${approvedBy}`)
         core.setOutput('approved-by', approvedBy)
+        core.info(`Workflow approved by ${approvedBy}`)
         return
       }
 
-      Logger.debug('Waiting for reactions...')
+      core.debug('Waiting for reactions...')
       await new Promise(resolve => setTimeout(resolve, interval * 1000))
     }
   }
@@ -30008,7 +30007,7 @@ module.exports = { ApprovalProcess }
 /***/ 5706:
 /***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
-const Logger = __nccwpck_require__(8033)
+const core = __nccwpck_require__(7484)
 
 class GitHubClient {
   constructor(octokit, context) {
@@ -30049,8 +30048,8 @@ class GitHubClient {
     // We can't take the risk that the base repo is different from the context repo.
     // This should never happen but bail out if it ever does.
     if (JSON.stringify(this.context.repo) !== JSON.stringify(payloadBaseRepo)) {
-      Logger.debug(JSON.stringify(this.context.repo, null, 2))
-      Logger.debug(JSON.stringify(payloadBaseRepo, null, 2))
+      core.debug(JSON.stringify(this.context.repo, null, 2))
+      core.debug(JSON.stringify(payloadBaseRepo, null, 2))
       throw new Error(
         'Context repo does not match payload pull request base repo!'
       )
@@ -30086,11 +30085,11 @@ class GitHubClient {
     )
 
     if (!comment || !comment.id) {
-      Logger.info('No matching issue comment found.')
+      core.info('No matching issue comment found.')
       return null
     }
 
-    Logger.info(`Found existing issue comment: ${comment.url}`)
+    core.info(`Found existing issue comment: ${comment.url}`)
     return comment
   }
 
@@ -30108,7 +30107,7 @@ class GitHubClient {
       throw new Error('Failed to create issue comment!')
     }
 
-    Logger.info(`Created new issue comment: ${comment.url}`)
+    core.info(`Created new issue comment: ${comment.url}`)
     return comment
   }
 
@@ -30238,38 +30237,10 @@ module.exports = { run }
 
 /***/ }),
 
-/***/ 8033:
-/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
-
-const core = __nccwpck_require__(7484)
-
-class Logger {
-  static info(message) {
-    core.info(message)
-  }
-
-  static warning(message) {
-    core.warning(message)
-  }
-
-  static error(message) {
-    core.error(message)
-  }
-
-  static debug(message) {
-    core.debug(message)
-  }
-}
-
-module.exports = Logger
-
-
-/***/ }),
-
 /***/ 2141:
 /***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
-const Logger = __nccwpck_require__(8033)
+const core = __nccwpck_require__(7484)
 
 class ReactionManager {
   constructor(gitHubClient) {
@@ -30337,7 +30308,7 @@ class ReactionManager {
 
       // Exclude reactions by commit authors
       if (!authorsCanReview && authors.includes(reaction.user.id)) {
-        Logger.debug(
+        core.debug(
           `Ignoring reaction :${reaction.content}: by ${reaction.user.login} (user is a commit author)`
         )
         continue
@@ -30345,7 +30316,7 @@ class ReactionManager {
 
       // Exclude reactions by the token user
       if (reaction.user.id === tokenUser.id) {
-        Logger.debug(
+        core.debug(
           `Ignoring reaction :${reaction.content}: by ${reaction.user.login} (user is the token user)`
         )
         continue
@@ -30356,13 +30327,13 @@ class ReactionManager {
         reaction.user.login
       )
       if (!permissions.includes(permission)) {
-        Logger.debug(
+        core.debug(
           `Ignoring reaction :${reaction.content}: by ${reaction.user.login} (user lacks required permissions)`
         )
         continue
       }
 
-      Logger.info(
+      core.info(
         `Found reaction :${reaction.content}: by ${reaction.user.login}`
       )
       filtered.push(reaction)

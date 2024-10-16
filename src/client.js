@@ -1,4 +1,4 @@
-const Logger = require('./logger')
+const core = require('@actions/core')
 
 class GitHubClient {
   constructor(octokit, context) {
@@ -39,8 +39,8 @@ class GitHubClient {
     // We can't take the risk that the base repo is different from the context repo.
     // This should never happen but bail out if it ever does.
     if (JSON.stringify(this.context.repo) !== JSON.stringify(payloadBaseRepo)) {
-      Logger.debug(JSON.stringify(this.context.repo, null, 2))
-      Logger.debug(JSON.stringify(payloadBaseRepo, null, 2))
+      core.debug(JSON.stringify(this.context.repo, null, 2))
+      core.debug(JSON.stringify(payloadBaseRepo, null, 2))
       throw new Error(
         'Context repo does not match payload pull request base repo!'
       )
@@ -76,11 +76,11 @@ class GitHubClient {
     )
 
     if (!comment || !comment.id) {
-      Logger.info('No matching issue comment found.')
+      core.info('No matching issue comment found.')
       return null
     }
 
-    Logger.info(`Found existing issue comment: ${comment.url}`)
+    core.info(`Found existing issue comment: ${comment.url}`)
     return comment
   }
 
@@ -98,7 +98,7 @@ class GitHubClient {
       throw new Error('Failed to create issue comment!')
     }
 
-    Logger.info(`Created new issue comment: ${comment.url}`)
+    core.info(`Created new issue comment: ${comment.url}`)
     return comment
   }
 
