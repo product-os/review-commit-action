@@ -168,6 +168,7 @@ describe('ReactionManager', () => {
 
     const eligibleReactions = await reactionManager.getEligibleReactions(
       123,
+      102,
       ['write', 'admin'],
       false
     )
@@ -189,7 +190,7 @@ describe('ReactionManager', () => {
         'Ignoring reaction :+1: by user3 (user lacks required permissions)'
       )
     )
-    expect(core.info).toHaveBeenCalledWith(
+    expect(core.debug).toHaveBeenCalledWith(
       expect.stringContaining('Found reaction :+1: by user4')
     )
   })

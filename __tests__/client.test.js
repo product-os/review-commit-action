@@ -1,9 +1,7 @@
-const { run } = require('jest')
+const core = require('@actions/core')
 const { GitHubClient } = require('../src/client')
-const Logger = require('../src/logger')
 
 jest.mock('@actions/core')
-jest.mock('../src/logger')
 
 describe('GitHubClient', () => {
   let gitHubClient
@@ -79,19 +77,16 @@ describe('GitHubClient', () => {
     )
   })
 
-  test('getPullRequestRepository returns the correct repository', () => {
-    expect(gitHubClient.getPullRequestRepository()).toEqual({
-      owner: 'testOwner',
-      repo: 'testRepo'
-    })
-  })
-
-  test('getPullRequestRepository throws an error when the context repo does not match the payload base repo', () => {
+  test('throwOnContextMismatch throws an error when the context repo does not match the payload base repo', () => {
     gitHubClient.context.payload.pull_request.base.repo.owner.login =
       'otherOwner'
-    expect(() => gitHubClient.getPullRequestRepository()).toThrow(
+    expect(() => gitHubClient.throwOnContextMismatch()).toThrow(
       'Context repo does not match payload pull request base repo!'
     )
+  })
+
+  test('throwOnContextMismatch does not throw an error when the context repo matches the payload base repo', () => {
+    expect(() => gitHubClient.throwOnContextMismatch()).not.toThrow()
   })
 
   test('getPullRequestAuthors returns the correct author IDs', async () => {
@@ -124,69 +119,6 @@ describe('GitHubClient', () => {
   })
 
   test('createIssueComment creates a new comment', async () => {
-    const mockComment = { id: 1, html_url: 'http://test.com/comment' }
-    mockOctokit.rest.issues.createComment.mockResolvedValue({
-      data: mockComment
-    })
-
-    const comment = await gitHubClient.createIssueComment('Test comment body')
-    expect(comment).toEqual(mockComment)
-    expect(mockOctokit.rest.issues.createComment).toHaveBeenCalledWith({
-      owner: 'testOwner',
-      repo: 'testRepo',
-      body: 'Test comment body',
-      issue_number: 1
-    })
-    expect(Logger.info).toHaveBeenCalledWith(
-      `Created new issue comment: ${mockComment.url}`
-    )
-  })
-
-  test('findIssueComment finds an existing comment', async () => {
-    const mockComments = [
-      {
-        id: 1,
-        body: 'Test PR comment',
-        created_at: '2023-01-01',
-        updated_at: '2023-01-01',
-        user: { id: 'testUserId' }
-      },
-      {
-        id: 2,
-        body: 'Another PR comment',
-        created_at: '2023-01-02',
-        updated_at: '2023-01-03',
-        user: { id: 'testUserId' }
-      }
-    ]
-    mockOctokit.rest.issues.listComments.mockResolvedValue({
-      data: mockComments
-    })
-
-    const comment = await gitHubClient.findIssueComment(
-      'testUserId',
-      'Test PR comment'
-    )
-    expect(comment).toEqual(mockComments[0])
-    expect(mockOctokit.rest.issues.listComments).toHaveBeenCalledWith({
-      owner: 'testOwner',
-      repo: 'testRepo',
-      issue_number: 1
-    })
-  })
-
-  test('findIssueComment returns null when no matching comment is found', async () => {
-    mockOctokit.rest.issues.listComments.mockResolvedValue({ data: [] })
-
-    const comment = await gitHubClient.findIssueComment(
-      'testUserId',
-      'Non-existent PR comment'
-    )
-    expect(comment).toBeNull()
-    expect(Logger.info).toHaveBeenCalledWith('No matching issue comment found.')
-  })
-
-  test('createIssueComment creates a new PR comment', async () => {
     const mockComment = { id: 1, url: 'http://test.com/pr-comment' }
     mockOctokit.rest.issues.createComment.mockResolvedValue({
       data: mockComment
@@ -202,9 +134,6 @@ describe('GitHubClient', () => {
       issue_number: 1,
       body: 'Test PR comment body'
     })
-    expect(Logger.info).toHaveBeenCalledWith(
-      `Created new issue comment: ${mockComment.url}`
-    )
   })
 
   test('createIssueComment throws an error when comment creation fails', async () => {

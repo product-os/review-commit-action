@@ -1,9 +1,7 @@
 const core = require('@actions/core')
 const { ApprovalProcess } = require('../src/approval')
-const Logger = require('../src/logger')
 
 jest.mock('@actions/core')
-jest.mock('../src/logger')
 
 describe('ApprovalProcess', () => {
   let approvalProcess
@@ -19,8 +17,7 @@ describe('ApprovalProcess', () => {
       getPullRequestMergeRef: jest.fn(),
       getRefSha: jest.fn(),
       getAuthenticatedUser: jest.fn(),
-      getPullRequestRepository: jest.fn(),
-      findIssueComment: jest.fn(),
+      throwOnContextMismatch: jest.fn(),
       createIssueComment: jest.fn(),
       deleteStaleIssueComments: jest.fn(),
       getWorkflowRunUrl: jest.fn()
@@ -39,8 +36,8 @@ describe('ApprovalProcess', () => {
     }
 
     mockConfig = {
-      commentFooter: 'Test comment footer',
-      commentHeader: 'Test comment header',
+      commentFooters: ['Test comment footer'],
+      commentHeaders: ['Test comment header'],
       pollInterval: 1,
       reviewerPermissions: ['write', 'admin']
     }
@@ -58,7 +55,7 @@ describe('ApprovalProcess', () => {
       mockGitHubClient.getAuthenticatedUser.mockResolvedValue({
         id: 'test-user-id'
       })
-      mockGitHubClient.getPullRequestRepository.mockReturnValue(null)
+      mockGitHubClient.throwOnContextMismatch.mockReturnValue(null)
       mockGitHubClient.createIssueComment.mockResolvedValue({
         id: 'test-comment-id',
         html_url: 'http://test-url.com'
@@ -70,9 +67,9 @@ describe('ApprovalProcess', () => {
       await approvalProcess.run()
 
       const commentBody = [
-        mockConfig.commentHeader,
-        'Workflow run: http://test-url.com',
-        mockConfig.commentFooter
+        ...mockConfig.commentHeaders,
+        'http://test-url.com',
+        ...mockConfig.commentFooters
       ].join('\n\n')
       expect(mockGitHubClient.getWorkflowRunUrl).toHaveBeenCalled()
       expect(mockGitHubClient.createIssueComment).toHaveBeenCalledWith(
@@ -123,11 +120,14 @@ describe('ApprovalProcess', () => {
         { content: '+1', user: { login: 'approver' } }
       ])
 
-      const waitPromise = approvalProcess.waitForApproval('test-comment-id')
+      const waitPromise = approvalProcess.waitForApproval(
+        'test-comment-id',
+        'test-user-id'
+      )
       await waitPromise
 
       expect(core.setOutput).toHaveBeenCalledWith('approved-by', 'approver')
-      expect(Logger.info).toHaveBeenCalledWith('Workflow approved by approver')
+      expect(core.info).toHaveBeenCalledWith('Workflow approved by approver')
     })
 
     test('throws an error when rejected', async () => {
@@ -154,6 +154,7 @@ describe('ApprovalProcess', () => {
 
       const waitPromise = approvalProcess.waitForApproval(
         'test-comment-id',
+        'test-user-id',
         0.1,
         1
       ) // 1s timeout
@@ -161,7 +162,6 @@ describe('ApprovalProcess', () => {
       await waitPromise
 
       expect(mockReactionManager.getEligibleReactions).toHaveBeenCalledTimes(3)
-      expect(Logger.debug).toHaveBeenCalledWith('Waiting for reactions...')
       expect(core.setOutput).toHaveBeenCalledWith('approved-by', 'approver')
     }, 2000) // Set test timeout to 2 seconds
   })

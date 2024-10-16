@@ -1,4 +1,4 @@
-const Logger = require('./logger')
+const core = require('@actions/core')
 
 class GitHubClient {
   constructor(octokit, context) {
@@ -20,6 +20,8 @@ class GitHubClient {
         run_id: this.context.runId
       })
 
+    core.debug(`Workflow run data: ${workflowRun.url}`)
+
     // The html_url property contains the unique URL for this run
     return workflowRun.html_url
   }
@@ -29,23 +31,20 @@ class GitHubClient {
     return commits.map(c => c.author.id)
   }
 
-  getPullRequestRepository() {
+  // FIXME: remove this once we manually test reviewer permissions with PRs from forks
+  throwOnContextMismatch() {
     const payloadBaseRepo = {
       owner: this.context.payload.pull_request.base.repo.owner.login,
       repo: this.context.payload.pull_request.base.repo.name
     }
 
-    // This condition is for the untested case where the PR is from a fork.
-    // We can't take the risk that the base repo is different from the context repo.
-    // This should never happen but bail out if it ever does.
     if (JSON.stringify(this.context.repo) !== JSON.stringify(payloadBaseRepo)) {
-      Logger.debug(JSON.stringify(this.context.repo, null, 2))
-      Logger.debug(JSON.stringify(payloadBaseRepo, null, 2))
+      core.debug(JSON.stringify(this.context.repo, null, 2))
+      core.debug(JSON.stringify(payloadBaseRepo, null, 2))
       throw new Error(
         'Context repo does not match payload pull request base repo!'
       )
     }
-    return this.context.repo
   }
 
   // https://octokit.github.io/rest.js/v18/#pulls-list-commits
@@ -55,33 +54,16 @@ class GitHubClient {
       ...this.context.repo,
       pull_number: this.context.payload.pull_request.number
     })
+    core.debug(`Found ${commits.length} commits`)
+    core.debug(`Commits payload:\n${JSON.stringify(commits, null, 2)}`)
     return commits
   }
 
   async getAuthenticatedUser() {
     const query = `query { viewer { databaseId login } }`
     const { viewer } = await this.octokit.graphql(query)
+    core.info(`Authenticated as: ${viewer.login}`)
     return { login: viewer.login, id: viewer.databaseId }
-  }
-
-  // Find existing PR comment with the following criteria:
-  // - body matches commentBody
-  // - created_at matches updated_at
-  // - user matches the provided token
-  async findIssueComment(userId, body) {
-    const comments = await this.listIssueComments()
-    const comment = comments.find(
-      c =>
-        c.body === body && c.user.id === userId && c.created_at === c.updated_at
-    )
-
-    if (!comment || !comment.id) {
-      Logger.info('No matching issue comment found.')
-      return null
-    }
-
-    Logger.info(`Found existing issue comment: ${comment.url}`)
-    return comment
   }
 
   // Create a new PR comment with the provided body
@@ -98,7 +80,8 @@ class GitHubClient {
       throw new Error('Failed to create issue comment!')
     }
 
-    Logger.info(`Created new issue comment: ${comment.url}`)
+    core.info(`Created new issue comment: ${comment.url}`)
+    core.debug(`Comment payload:\n${JSON.stringify(comment, null, 2)}`)
     return comment
   }
 
@@ -109,6 +92,8 @@ class GitHubClient {
       ...this.context.repo,
       issue_number: this.context.payload.pull_request.number
     })
+    core.debug(`Found ${comments.length} comments`)
+    core.debug(`Comments payload:\n${JSON.stringify(comments, null, 2)}`)
     return comments
   }
 
@@ -129,6 +114,7 @@ class GitHubClient {
         comment_id: comment.id
       })
     }
+    core.info(`Deleted ${filteredComments.length} stale comments.`)
   }
 
   // https://octokit.github.io/rest.js/v21/#repos-get-collaborator-permission-level
@@ -139,6 +125,7 @@ class GitHubClient {
         ...this.context.repo,
         username
       })
+    core.debug(`User ${username} has permission: ${permissionData.permission}`)
     return permissionData.permission
   }
 
@@ -151,6 +138,8 @@ class GitHubClient {
         comment_id: commentId,
         content
       })
+    core.info(`Created new :${reaction.content}: reaction ID ${reaction.id}`)
+    core.debug(`Reaction payload:\n${JSON.stringify(reaction, null, 2)}`)
     return reaction
   }
 
@@ -162,6 +151,8 @@ class GitHubClient {
         ...this.context.repo,
         comment_id: commentId
       })
+    core.debug(`Found ${reactions.length} reactions`)
+    core.debug(`Reactions payload:\n${JSON.stringify(reactions, null, 2)}`)
     return reactions
   }
 
@@ -173,6 +164,7 @@ class GitHubClient {
       comment_id: commentId,
       reaction_id: reactionId
     })
+    core.info(`Deleted reaction ID ${reactionId}`)
   }
 }
 
