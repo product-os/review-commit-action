@@ -1,4 +1,19 @@
 - commits:
+    - subject: Remove logger abstraction
+      hash: d926405764fdd7c9d25251940bb3e26c9374f0ab
+      body: |
+        This component wasn't adding any value
+      footer:
+        Change-type: patch
+        change-type: patch
+        Signed-off-by: Kyle Harding <kyle@balena.io>
+        signed-off-by: Kyle Harding <kyle@balena.io>
+      author: Kyle Harding
+      nested: []
+  version: 0.1.3
+  title: ""
+  date: 2024-10-16T17:32:27.936Z
+- commits:
     - subject: Pin dependencies
       hash: 619d1a48ff38bf506d99f11bd53601f76245692d
       body: |
