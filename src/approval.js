@@ -27,6 +27,7 @@ class ApprovalProcess {
 
     const comment = await this.gitHubClient.createIssueComment(commentBody)
 
+    core.saveState('comment-id', comment.id)
     core.setOutput('comment-id', comment.id)
 
     await this.reactionManager.setReaction(
@@ -73,6 +74,7 @@ class ApprovalProcess {
 
       if (rejectedBy) {
         core.debug(`Workflow rejected by ${rejectedBy}`)
+        core.saveState('rejected-by', rejectedBy)
         core.setOutput('rejected-by', rejectedBy)
         throw new Error(`Workflow rejected by ${rejectedBy}`)
       }
@@ -82,6 +84,7 @@ class ApprovalProcess {
       )?.user.login
 
       if (approvedBy) {
+        core.saveState('approved-by', approvedBy)
         core.setOutput('approved-by', approvedBy)
         core.info(`Workflow approved by ${approvedBy}`)
         return

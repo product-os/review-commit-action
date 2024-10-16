@@ -29938,6 +29938,7 @@ class ApprovalProcess {
 
     const comment = await this.gitHubClient.createIssueComment(commentBody)
 
+    core.saveState('comment-id', comment.id)
     core.setOutput('comment-id', comment.id)
 
     await this.reactionManager.setReaction(
@@ -29984,6 +29985,7 @@ class ApprovalProcess {
 
       if (rejectedBy) {
         core.debug(`Workflow rejected by ${rejectedBy}`)
+        core.saveState('rejected-by', rejectedBy)
         core.setOutput('rejected-by', rejectedBy)
         throw new Error(`Workflow rejected by ${rejectedBy}`)
       }
@@ -29993,6 +29995,7 @@ class ApprovalProcess {
       )?.user.login
 
       if (approvedBy) {
+        core.saveState('approved-by', approvedBy)
         core.setOutput('approved-by', approvedBy)
         core.info(`Workflow approved by ${approvedBy}`)
         return
@@ -30197,6 +30200,7 @@ const github = __nccwpck_require__(3228)
 const { GitHubClient } = __nccwpck_require__(5706)
 const { ReactionManager } = __nccwpck_require__(2141)
 const { ApprovalProcess } = __nccwpck_require__(9682)
+const { PostProcess } = __nccwpck_require__(6043)
 
 async function run() {
   try {
@@ -30217,12 +30221,21 @@ async function run() {
     const octokit = github.getOctokit(config.token)
     const gitHubClient = new GitHubClient(octokit, github.context)
     const reactionManager = new ReactionManager(gitHubClient)
+
+    // Check if this is a post-execution run
+    // eslint-disable-next-line no-extra-boolean-cast
+    if (!!core.getState('isPost')) {
+      const postProcess = new PostProcess(gitHubClient, reactionManager)
+      await postProcess.run()
+      return
+    }
+
+    core.saveState('isPost', 'true')
     const approvalProcess = new ApprovalProcess(
       gitHubClient,
       reactionManager,
       config
     )
-
     await approvalProcess.run()
   } catch (error) {
     core.setFailed(error.message)
@@ -30232,6 +30245,47 @@ async function run() {
 run()
 
 module.exports = { run }
+
+
+/***/ }),
+
+/***/ 6043:
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+
+const core = __nccwpck_require__(7484)
+
+class PostProcess {
+  constructor(gitHubClient, reactionManager) {
+    this.gitHubClient = gitHubClient
+    this.reactionManager = reactionManager
+  }
+
+  async run() {
+    try {
+      const commentId = core.getState('comment-id')
+      const wasApproved = core.getState('approved-by') !== ''
+      const tokenUser = await this.gitHubClient.getAuthenticatedUser()
+
+      if (commentId && wasApproved) {
+        await this.reactionManager.setReaction(
+          commentId,
+          tokenUser.id,
+          this.reactionManager.reactions.SUCCESS
+        )
+        return
+      }
+      await this.reactionManager.setReaction(
+        commentId,
+        tokenUser.id,
+        this.reactionManager.reactions.FAILED
+      )
+    } catch (error) {
+      core.warning(`Cleanup failed: ${error.message}`)
+    }
+  }
+}
+
+module.exports = { PostProcess }
 
 
 /***/ }),

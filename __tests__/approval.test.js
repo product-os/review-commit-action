@@ -75,6 +75,10 @@ describe('ApprovalProcess', () => {
       expect(mockGitHubClient.createIssueComment).toHaveBeenCalledWith(
         commentBody
       )
+      expect(core.saveState).toHaveBeenCalledWith(
+        'comment-id',
+        'test-comment-id'
+      )
       expect(core.setOutput).toHaveBeenCalledWith(
         'comment-id',
         'test-comment-id'
@@ -126,6 +130,7 @@ describe('ApprovalProcess', () => {
       )
       await waitPromise
 
+      expect(core.saveState).toHaveBeenCalledWith('approved-by', 'approver')
       expect(core.setOutput).toHaveBeenCalledWith('approved-by', 'approver')
       expect(core.info).toHaveBeenCalledWith('Workflow approved by approver')
     })
@@ -143,6 +148,7 @@ describe('ApprovalProcess', () => {
 
       await expect(waitPromise).rejects.toThrow('Workflow rejected by rejector')
       expect(mockReactionManager.getEligibleReactions).toHaveBeenCalledTimes(2)
+      expect(core.saveState).toHaveBeenCalledWith('rejected-by', 'rejector')
       expect(core.setOutput).toHaveBeenCalledWith('rejected-by', 'rejector')
     }, 2000) // Set test timeout to 2 seconds
 
@@ -162,6 +168,7 @@ describe('ApprovalProcess', () => {
       await waitPromise
 
       expect(mockReactionManager.getEligibleReactions).toHaveBeenCalledTimes(3)
+      expect(core.saveState).toHaveBeenCalledWith('approved-by', 'approver')
       expect(core.setOutput).toHaveBeenCalledWith('approved-by', 'approver')
     }, 2000) // Set test timeout to 2 seconds
   })
