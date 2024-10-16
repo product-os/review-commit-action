@@ -6,30 +6,24 @@ jest.mock('@actions/core')
 describe('ReactionManager', () => {
   let reactionManager
   let mockGitHubClient
-  let mockConfig
 
   beforeEach(() => {
     jest.clearAllMocks()
 
     mockGitHubClient = {
-      createReactionForCommitComment: jest.fn(),
-      deleteReactionForCommitComment: jest.fn(),
-      getReactionsForCommitComment: jest.fn(),
+      createReactionForIssueComment: jest.fn(),
+      deleteReactionForIssueComment: jest.fn(),
+      getReactionsForIssueComment: jest.fn(),
       getPullRequestAuthors: jest.fn(),
       getAuthenticatedUser: jest.fn(),
       getUserPermission: jest.fn()
     }
 
-    mockConfig = {
-      authorsCanReview: false,
-      reviewerPermissions: ['write', 'admin']
-    }
-
-    reactionManager = new ReactionManager(mockGitHubClient, mockConfig)
+    reactionManager = new ReactionManager(mockGitHubClient)
   })
 
   test('createReaction creates a reaction successfully', async () => {
-    mockGitHubClient.createReactionForCommitComment.mockResolvedValue({
+    mockGitHubClient.createReactionForIssueComment.mockResolvedValue({
       id: 1,
       content: '+1'
     })
@@ -40,17 +34,19 @@ describe('ReactionManager', () => {
       content: '+1'
     })
 
-    expect(
-      mockGitHubClient.createReactionForCommitComment
-    ).toHaveBeenCalledWith(123, '+1')
+    expect(mockGitHubClient.createReactionForIssueComment).toHaveBeenCalledWith(
+      123,
+      '+1'
+    )
   })
 
   test('deleteReaction deletes a reaction successfully', async () => {
     await reactionManager.deleteReaction(123, 456)
 
-    expect(
-      mockGitHubClient.deleteReactionForCommitComment
-    ).toHaveBeenCalledWith(123, 456)
+    expect(mockGitHubClient.deleteReactionForIssueComment).toHaveBeenCalledWith(
+      123,
+      456
+    )
   })
 
   test('getReactions retrieves reactions successfully', async () => {
@@ -58,14 +54,14 @@ describe('ReactionManager', () => {
       { id: 1, content: '+1', user: { id: 101 } },
       { id: 2, content: '-1', user: { id: 102 } }
     ]
-    mockGitHubClient.getReactionsForCommitComment.mockResolvedValue(
+    mockGitHubClient.getReactionsForIssueComment.mockResolvedValue(
       mockReactions
     )
 
     const reactions = await reactionManager.getReactions(123)
     expect(reactions).toEqual(mockReactions)
 
-    expect(mockGitHubClient.getReactionsForCommitComment).toHaveBeenCalledWith(
+    expect(mockGitHubClient.getReactionsForIssueComment).toHaveBeenCalledWith(
       123
     )
   })
@@ -76,7 +72,7 @@ describe('ReactionManager', () => {
       { id: 2, content: '-1', user: { id: 102 } },
       { id: 3, content: '+1', user: { id: 101 } }
     ]
-    mockGitHubClient.getReactionsForCommitComment.mockResolvedValue(
+    mockGitHubClient.getReactionsForIssueComment.mockResolvedValue(
       mockReactions
     )
 
@@ -86,7 +82,7 @@ describe('ReactionManager', () => {
       { id: 3, content: '+1', user: { id: 101 } }
     ])
 
-    expect(mockGitHubClient.getReactionsForCommitComment).toHaveBeenCalledWith(
+    expect(mockGitHubClient.getReactionsForIssueComment).toHaveBeenCalledWith(
       123
     )
   })
@@ -97,21 +93,23 @@ describe('ReactionManager', () => {
       { id: 2, content: '-1', user: { id: 102 } },
       { id: 3, content: '+1', user: { id: 101 } }
     ]
-    mockGitHubClient.getReactionsForCommitComment.mockResolvedValue(
+    mockGitHubClient.getReactionsForIssueComment.mockResolvedValue(
       mockReactions
     )
 
     await reactionManager.removeReactionsByUser(123, 101)
 
     expect(
-      mockGitHubClient.deleteReactionForCommitComment
+      mockGitHubClient.deleteReactionForIssueComment
     ).toHaveBeenCalledTimes(2)
-    expect(
-      mockGitHubClient.deleteReactionForCommitComment
-    ).toHaveBeenCalledWith(123, 1)
-    expect(
-      mockGitHubClient.deleteReactionForCommitComment
-    ).toHaveBeenCalledWith(123, 3)
+    expect(mockGitHubClient.deleteReactionForIssueComment).toHaveBeenCalledWith(
+      123,
+      1
+    )
+    expect(mockGitHubClient.deleteReactionForIssueComment).toHaveBeenCalledWith(
+      123,
+      3
+    )
   })
 
   test('setReaction removes existing reactions and creates a new one', async () => {
@@ -119,10 +117,10 @@ describe('ReactionManager', () => {
       { id: 1, content: '+1', user: { id: 101 } },
       { id: 2, content: '-1', user: { id: 101 } }
     ]
-    mockGitHubClient.getReactionsForCommitComment.mockResolvedValue(
+    mockGitHubClient.getReactionsForIssueComment.mockResolvedValue(
       mockReactions
     )
-    mockGitHubClient.createReactionForCommitComment.mockResolvedValue({
+    mockGitHubClient.createReactionForIssueComment.mockResolvedValue({
       id: 3,
       content: 'eyes'
     })
@@ -130,17 +128,20 @@ describe('ReactionManager', () => {
     await reactionManager.setReaction(123, 101, 'eyes')
 
     expect(
-      mockGitHubClient.deleteReactionForCommitComment
+      mockGitHubClient.deleteReactionForIssueComment
     ).toHaveBeenCalledTimes(2)
-    expect(
-      mockGitHubClient.deleteReactionForCommitComment
-    ).toHaveBeenCalledWith(123, 1)
-    expect(
-      mockGitHubClient.deleteReactionForCommitComment
-    ).toHaveBeenCalledWith(123, 2)
-    expect(
-      mockGitHubClient.createReactionForCommitComment
-    ).toHaveBeenCalledWith(123, 'eyes')
+    expect(mockGitHubClient.deleteReactionForIssueComment).toHaveBeenCalledWith(
+      123,
+      1
+    )
+    expect(mockGitHubClient.deleteReactionForIssueComment).toHaveBeenCalledWith(
+      123,
+      2
+    )
+    expect(mockGitHubClient.createReactionForIssueComment).toHaveBeenCalledWith(
+      123,
+      'eyes'
+    )
   })
 
   test('getEligibleReactions filters reactions based on permissions and authors', async () => {
@@ -150,7 +151,7 @@ describe('ReactionManager', () => {
       { id: 3, content: '+1', user: { id: 103, login: 'user3' } },
       { id: 4, content: '+1', user: { id: 104, login: 'user4' } }
     ]
-    mockGitHubClient.getReactionsForCommitComment.mockResolvedValue(
+    mockGitHubClient.getReactionsForIssueComment.mockResolvedValue(
       mockReactions
     )
     mockGitHubClient.getPullRequestAuthors.mockReturnValue([101])
@@ -165,7 +166,11 @@ describe('ReactionManager', () => {
       return permissions[username]
     })
 
-    const eligibleReactions = await reactionManager.getEligibleReactions(123)
+    const eligibleReactions = await reactionManager.getEligibleReactions(
+      123,
+      ['write', 'admin'],
+      false
+    )
 
     expect(eligibleReactions).toEqual([mockReactions[3]])
 

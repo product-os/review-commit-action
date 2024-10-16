@@ -6,11 +6,13 @@ runs:
   steps:
     - uses: ./
       id: commit-review
+      # skip test if author is balena-renovate[bot]
+      if: github.actor_id != '133977723'
       with:
-        check-interval: 5
-        timeout-seconds: 600
+        poll-interval: 5
         allow-authors: true
     - name: Run after approval
+      if: steps.commit-review.conclusion == 'success'
       shell: bash
       run: |
         echo "Comment ID: ${{ steps.commit-review.outputs.comment-id }}"

@@ -1,24 +1,30 @@
 const Logger = require('./logger')
 
 class ReactionManager {
-  constructor(gitHubClient, config) {
+  constructor(gitHubClient) {
     this.gitHubClient = gitHubClient
-    this.config = config
+    this.reactions = Object.freeze({
+      APPROVE: '+1',
+      REJECT: '-1',
+      WAIT: 'eyes',
+      SUCCESS: 'rocket',
+      FAILED: 'confused'
+    })
   }
 
   async createReaction(commentId, content) {
-    return this.gitHubClient.createReactionForCommitComment(commentId, content)
+    return this.gitHubClient.createReactionForIssueComment(commentId, content)
   }
 
   async deleteReaction(commentId, reactionId) {
-    return this.gitHubClient.deleteReactionForCommitComment(
+    return this.gitHubClient.deleteReactionForIssueComment(
       commentId,
       reactionId
     )
   }
 
   async getReactions(commentId) {
-    return this.gitHubClient.getReactionsForCommitComment(commentId)
+    return this.gitHubClient.getReactionsForIssueComment(commentId)
   }
 
   async getReactionsByUser(commitId, userId) {
@@ -48,9 +54,7 @@ class ReactionManager {
   }
 
   // Eligible reactions are those by users with the required permissions
-  async getEligibleReactions(commentId) {
-    const permissions = this.config.reviewerPermissions
-    const authorsCanReview = this.config.authorsCanReview
+  async getEligibleReactions(commentId, permissions, authorsCanReview) {
     const reactions = await this.getReactions(commentId)
     const filtered = []
 

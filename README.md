@@ -6,42 +6,29 @@ where you need manual approval before proceeding with certain actions.
 
 ## How It Works
 
-1. When triggered in a PR workflow, the action creates a commit comment on the
-   tip of HEAD.
-2. The comment requests that a repository maintainer react with the specified
-   approval reaction (default: 👍) to approve the workflow.
-3. The action then enters a loop, waiting for a reaction from someone with write
-   access to the repository.
-4. If the required reaction is not found, it will continue looping until the
+1. When triggered in a pull request workflow, the action creates new a comment
+   on the pull request. Reviews are completed by reacting with emoji 👍 or 👎 on
+   the comment to approve or reject respectively.
+2. The action then enters a loop, waiting for a reaction from an eligible
+   reviewer. Reviewers must have at least `write` access to the repository to
+   have their reactions considered as eligible. Read more about collaborator
+   permissions
+   [here](https://docs.github.com/en/rest/collaborators/collaborators#get-repository-permissions-for-a-user)
+3. If the required reaction is not found, it will continue looping until the
    step times out.
-5. If a denial reaction is received from someone with write access, the action
-   will exit with an error.
 
 ### Additional details
 
-- Reviews are completed by reacting with emoji 👍 or 👎 on the generated commit
-  comment.
-- If the review is rejected, the action will throw an error and exit the
-  workflow.
-- If the review is approved, the action will log the approver name and continue
-  the workflow.
-- Users must have at least `write` access to the repository to have their
-  reactions considered as eligible. Read
-  [this](https://docs.github.com/en/rest/collaborators/collaborators?apiVersion=2022-11-28#get-repository-permissions-for-a-user)
-  to see how permissions are mapped.
 - The user associated with the token running the action is excluded from
   eligible reviewers. It is advised to use the actions `GITHUB_TOKEN` secret or
   App Installation tokens.
-- By default, authors of commits on the PR are excluded from eligible reviewers,
-  but this can be toggled via an input.
-- The commit comment requiring review is always associated with the latest SHA
-  that triggered the PR workflow. This is done to prevent Actions Time Of Check
-  to Time Of Use (TOCTOU) attacks. Read more
+- By default, authors of commits on the pull request are excluded from eligible
+  reviewers, but this can be toggled via an input.
+- The comment requiring review is always associated with the current run of the
+  workflow. Reacting to previous comments has no effect. This is done to prevent
+  Actions Time Of Check to Time Of Use (TOCTOU) attacks. Read more
   [here](https://securitylab.github.com/resources/github-actions-preventing-pwn-requests/)
   and [here](https://github.com/AdnaneKhan/ActionsTOCTOU/blob/main/README.md).
-- A helper PR comment is created for convenience, always pointing to the current
-  static commit comment requiring review. This PR comment is purely for
-  convenience and is not part of the chain of trust.
 
 ## Usage
 
@@ -60,7 +47,6 @@ To use this action in your workflow, add the following step:
 
 This action requires a token with the following permissions:
 
-- `contents:write`: Required to create comments on commits.
 - `pull-requests:write`: Required to create comments on pull requests.
 
 The automatic actions `GITHUB_TOKEN` secret should work fine, and is the
@@ -101,7 +87,7 @@ jobs:
     runs-on: ubuntu-latest
 
     permissions:
-      contents: write
+      # Required to create comments on pull requests.
       pull-requests: write
 
     steps:
