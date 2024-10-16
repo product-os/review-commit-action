@@ -1,4 +1,17 @@
 - commits:
+    - subject: Update dependency node to v20.18.0
+      hash: 21f006563b026367d06bca954c1b6ad1085b3f79
+      body: |
+        Update node from 20.6.0 to 20.18.0
+      footer:
+        Change-type: patch
+        change-type: patch
+      author: Self-hosted Renovate Bot
+      nested: []
+  version: 0.1.1
+  title: ""
+  date: 2024-10-16T16:10:19.790Z
+- commits:
     - subject: Replace commit comments with a single runtime PR comment
       hash: 6dfec5891bfea3b299f8b6b1a448d67829aec3cb
       body: |
