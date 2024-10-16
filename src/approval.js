@@ -9,44 +9,31 @@ class ApprovalProcess {
   }
 
   async run() {
-    const ref = this.gitHubClient.getPullRequestMergeRef()
-    const commitSha = await this.gitHubClient.getRefSha(ref)
     const tokenUser = await this.gitHubClient.getAuthenticatedUser()
 
     // used for validation purposes only
     this.gitHubClient.getPullRequestRepository()
 
-    const commitCommentBody = [
+    const runUrl = await this.gitHubClient.getWorkflowRunUrl()
+
+    const commentBody = [
       this.config.commentHeader,
+      `Workflow run: ${runUrl}`,
       this.config.commentFooter
     ].join('\n\n')
 
-    let comment = await this.gitHubClient.findCommitComment(
-      commitSha,
-      tokenUser.id,
-      commitCommentBody
-    )
-    if (!comment) {
-      comment = await this.gitHubClient.createCommitComment(
-        commitSha,
-        commitCommentBody
-      )
-    }
+    // await this.gitHubClient.deleteStaleIssueComments(
+    //   this.config.commentHeader
+    // )
+
+    const comment = await this.gitHubClient.createIssueComment(commentBody)
 
     core.setOutput('comment-id', comment.id)
 
     await this.reactionManager.setReaction(
       comment.id,
       tokenUser.id,
-      this.config.waitReaction
-    )
-    await this.gitHubClient.deleteStalePullRequestComments(
-      this.config.commentHeader
-    )
-
-    const pullRequestCommentBody = `See ${comment.html_url}`
-    await this.gitHubClient.createPullRequestComment(
-      [this.config.commentHeader, pullRequestCommentBody].join('\n\n')
+      this.reactionManager.reactions.WAIT
     )
 
     try {
@@ -54,13 +41,13 @@ class ApprovalProcess {
       await this.reactionManager.setReaction(
         comment.id,
         tokenUser.id,
-        this.config.successReaction
+        this.reactionManager.reactions.SUCCESS
       )
     } catch (error) {
       await this.reactionManager.setReaction(
         comment.id,
         tokenUser.id,
-        this.config.failedReaction
+        this.reactionManager.reactions.FAILED
       )
       throw error
     }
@@ -68,14 +55,16 @@ class ApprovalProcess {
 
   // Wait for approval by checking reactions on a comment
   async waitForApproval(commentId, interval = 30) {
-    const startTime = Date.now()
     Logger.info('Checking for reactions...')
     for (;;) {
-      const reactions =
-        await this.reactionManager.getEligibleReactions(commentId)
+      const reactions = await this.reactionManager.getEligibleReactions(
+        commentId,
+        this.config.reviewerPermissions,
+        this.config.authorsCanReview
+      )
 
       const rejectedBy = reactions.find(
-        r => r.content === this.config.rejectReaction
+        r => r.content === this.reactionManager.reactions.REJECT
       )?.user.login
 
       if (rejectedBy) {
@@ -85,7 +74,7 @@ class ApprovalProcess {
       }
 
       const approvedBy = reactions.find(
-        r => r.content === this.config.approveReaction
+        r => r.content === this.reactionManager.reactions.APPROVE
       )?.user.login
 
       if (approvedBy) {

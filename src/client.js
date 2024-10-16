@@ -6,28 +6,22 @@ class GitHubClient {
     this.context = context
   }
 
-  getPullRequestHeadSha() {
-    if (!this.context.payload.pull_request) {
-      throw new Error('No pull request found in context!')
+  // https://octokit.github.io/rest.js/v18/#actions-get-workflow-run
+  // https://docs.github.com/en/rest/actions/workflow-runs#get-a-workflow-run
+  async getWorkflowRunUrl() {
+    if (!this.context.runId) {
+      throw new Error('No run ID found in context!')
     }
-    return this.context.payload.pull_request.head.sha
-  }
 
-  getPullRequestMergeRef() {
-    if (!this.context.payload.pull_request) {
-      throw new Error('No pull request found in context!')
-    }
-    return `pull/${this.context.payload.pull_request.number}/merge`
-  }
+    // Fetch the workflow run data
+    const { data: workflowRun } =
+      await this.octokit.rest.actions.getWorkflowRun({
+        ...this.context.repo,
+        run_id: this.context.runId
+      })
 
-  // https://octokit.github.io/rest.js/v18/#git-get-ref
-  // https://docs.github.com/en/rest/git/refs?apiVersion=2022-11-28#get-a-reference
-  async getRefSha(ref) {
-    const { data } = await this.octokit.rest.git.getRef({
-      ...this.context.repo,
-      ref
-    })
-    return data.object.sha
+    // The html_url property contains the unique URL for this run
+    return workflowRun.html_url
   }
 
   async getPullRequestAuthors() {
@@ -54,6 +48,7 @@ class GitHubClient {
     return this.context.repo
   }
 
+  // https://octokit.github.io/rest.js/v18/#pulls-list-commits
   // https://docs.github.com/en/rest/pulls/pulls#list-commits-on-a-pull-request
   async getPullRequestCommits() {
     const { data: commits } = await this.octokit.rest.pulls.listCommits({
@@ -69,77 +64,30 @@ class GitHubClient {
     return { login: viewer.login, id: viewer.databaseId }
   }
 
-  // Find existing commit comment with the following criteria:
-  // - body matches provided body
-  // - created_at matches updated_at
-  // - user matches the provided token
-  async findCommitComment(commitSha, userId, body) {
-    const { data: comments } =
-      await this.octokit.rest.repos.listCommentsForCommit({
-        ...this.context.repo,
-        commit_sha: commitSha
-      })
-
-    // Filter commit comments to match the body and created_at matches updated_at
-    const comment = comments.find(
-      c =>
-        c.body === body && c.created_at === c.updated_at && c.user.id === userId
-    )
-
-    if (!comment || !comment.id) {
-      Logger.info('No matching commit comment found.')
-      return null
-    }
-
-    Logger.info(`Found existing commit comment: ${comment.url}`)
-    return comment
-  }
-
-  // Create a new commit comment with the provided body
-  // https://octokit.github.io/rest.js/v21/#repos-create-commit-comment
-  // https://docs.github.com/rest/commits/comments#create-a-commit-comment
-  async createCommitComment(commitSha, body) {
-    const { data: comment } = await this.octokit.rest.repos.createCommitComment(
-      {
-        ...this.context.repo,
-        commit_sha: commitSha,
-        body
-      }
-    )
-
-    if (!comment || !comment.id) {
-      throw new Error('Failed to create commit comment for approval.')
-    }
-
-    Logger.info(`Created new commit comment: ${comment.url}`)
-    return comment
-  }
-
   // Find existing PR comment with the following criteria:
   // - body matches commentBody
   // - created_at matches updated_at
   // - user matches the provided token
-  async findPrComment(userId, body) {
-    const { data: comments } = await this.octokit.rest.issues.listComments({
-      ...this.context.repo,
-      issue_number: this.context.payload.pull_request.number
-    })
-
+  async findIssueComment(userId, body) {
+    const comments = await this.listIssueComments()
     const comment = comments.find(
       c =>
         c.body === body && c.user.id === userId && c.created_at === c.updated_at
     )
 
     if (!comment || !comment.id) {
-      Logger.info('No matching PR comment found.')
+      Logger.info('No matching issue comment found.')
       return null
     }
 
-    Logger.info(`Found existing PR comment: ${comment.url}`)
+    Logger.info(`Found existing issue comment: ${comment.url}`)
     return comment
   }
 
-  async createPullRequestComment(body) {
+  // Create a new PR comment with the provided body
+  // https://octokit.github.io/rest.js/v18/#issues-create-comment
+  // https://docs.github.com/en/rest/issues/comments#create-an-issue-comment
+  async createIssueComment(body) {
     const { data: comment } = await this.octokit.rest.issues.createComment({
       ...this.context.repo,
       issue_number: this.context.payload.pull_request.number,
@@ -147,14 +95,16 @@ class GitHubClient {
     })
 
     if (!comment || !comment.id) {
-      throw new Error('Failed to create PR comment for approval.')
+      throw new Error('Failed to create issue comment!')
     }
 
-    Logger.info(`Created new PR comment: ${comment.url}`)
+    Logger.info(`Created new issue comment: ${comment.url}`)
     return comment
   }
 
-  async listPullRequestComments() {
+  // https://octokit.github.io/rest.js/v18/#issues-list-comments
+  // https://docs.github.com/en/rest/issues/comments#list-issue-comments
+  async listIssueComments() {
     const { data: comments } = await this.octokit.rest.issues.listComments({
       ...this.context.repo,
       issue_number: this.context.payload.pull_request.number
@@ -162,8 +112,9 @@ class GitHubClient {
     return comments
   }
 
-  async deleteStalePullRequestComments(startsWith) {
-    const comments = await this.listPullRequestComments()
+  // Delete all PR comments that start with the provided string
+  async deleteStaleIssueComments(startsWith) {
+    const comments = await this.listIssueComments()
     const userId = (await this.getAuthenticatedUser()).id
     const filteredComments = comments.filter(
       c =>
@@ -191,12 +142,11 @@ class GitHubClient {
     return permissionData.permission
   }
 
-  // Create a reaction on a comment
-  // https://octokit.github.io/rest.js/v18/#reactions-create-for-commit-comment
-  // https://docs.github.com/en/rest/reactions/reactions#create-reaction-for-a-commit-comment
-  async createReactionForCommitComment(commentId, content) {
+  // https://octokit.github.io/rest.js/v18/#reactions-create-for-issue-comment
+  // https://docs.github.com/en/rest/reactions/reactions#create-reaction-for-an-issue-comment
+  async createReactionForIssueComment(commentId, content) {
     const { data: reaction } =
-      await this.octokit.rest.reactions.createForCommitComment({
+      await this.octokit.rest.reactions.createForIssueComment({
         ...this.context.repo,
         comment_id: commentId,
         content
@@ -204,24 +154,25 @@ class GitHubClient {
     return reaction
   }
 
-  // Delete a reaction on a comment
-  // https://octokit.github.io/rest.js/v18/#reactions-delete-for-commit-comment
-  // https://docs.github.com/en/rest/reactions/reactions#delete-a-commit-comment-reaction
-  async deleteReactionForCommitComment(commentId, reactionId) {
-    await this.octokit.rest.reactions.deleteForCommitComment({
-      ...this.context.repo,
-      comment_id: commentId,
-      reaction_id: reactionId
-    })
-  }
-
-  async getReactionsForCommitComment(commentId) {
+  // https://octokit.github.io/rest.js/v18/#reactions-list-for-issue-comment
+  // https://docs.github.com/en/rest/reactions/reactions#list-reactions-for-an-issue-comment
+  async getReactionsForIssueComment(commentId) {
     const { data: reactions } =
-      await this.octokit.rest.reactions.listForCommitComment({
+      await this.octokit.rest.reactions.listForIssueComment({
         ...this.context.repo,
         comment_id: commentId
       })
     return reactions
+  }
+
+  // https://octokit.github.io/rest.js/v18/#reactions-delete-for-issue-comment
+  // https://docs.github.com/en/rest/reactions/reactions#delete-an-issue-comment-reaction
+  async deleteReactionForIssueComment(commentId, reactionId) {
+    await this.octokit.rest.reactions.deleteForIssueComment({
+      ...this.context.repo,
+      comment_id: commentId,
+      reaction_id: reactionId
+    })
   }
 }
 

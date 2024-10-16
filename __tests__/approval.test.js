@@ -20,27 +20,29 @@ describe('ApprovalProcess', () => {
       getRefSha: jest.fn(),
       getAuthenticatedUser: jest.fn(),
       getPullRequestRepository: jest.fn(),
-      findCommitComment: jest.fn(),
-      createCommitComment: jest.fn(),
-      deleteStalePullRequestComments: jest.fn(),
-      createPullRequestComment: jest.fn()
+      findIssueComment: jest.fn(),
+      createIssueComment: jest.fn(),
+      deleteStaleIssueComments: jest.fn(),
+      getWorkflowRunUrl: jest.fn()
     }
 
     mockReactionManager = {
       setReaction: jest.fn(),
-      getEligibleReactions: jest.fn()
+      getEligibleReactions: jest.fn(),
+      reactions: {
+        APPROVE: '+1',
+        REJECT: '-1',
+        WAIT: 'eyes',
+        SUCCESS: 'rocket',
+        FAILED: 'confused'
+      }
     }
 
     mockConfig = {
       commentFooter: 'Test comment footer',
-      waitReaction: 'eyes',
       commentHeader: 'Test comment header',
       pollInterval: 1,
-      reviewerPermissions: ['write', 'admin'],
-      rejectReaction: '-1',
-      approveReaction: '+1',
-      successReaction: 'rocket',
-      failedReaction: 'confused'
+      reviewerPermissions: ['write', 'admin']
     }
 
     approvalProcess = new ApprovalProcess(
@@ -52,35 +54,28 @@ describe('ApprovalProcess', () => {
 
   describe('run', () => {
     beforeEach(() => {
-      mockGitHubClient.getPullRequestHeadSha.mockReturnValue('test-sha')
-      mockGitHubClient.getPullRequestMergeRef.mockReturnValue('pull/1/merge')
-      mockGitHubClient.getRefSha.mockResolvedValue('test-sha')
+      mockGitHubClient.getWorkflowRunUrl.mockReturnValue('http://test-url.com')
       mockGitHubClient.getAuthenticatedUser.mockResolvedValue({
         id: 'test-user-id'
       })
       mockGitHubClient.getPullRequestRepository.mockReturnValue(null)
-      mockGitHubClient.findCommitComment.mockResolvedValue(null)
-      mockGitHubClient.createCommitComment.mockResolvedValue({
+      mockGitHubClient.createIssueComment.mockResolvedValue({
         id: 'test-comment-id',
         html_url: 'http://test-url.com'
       })
       approvalProcess.waitForApproval = jest.fn()
     })
 
-    test('creates a new comment when no existing comment is found', async () => {
+    test('creates a new issue comment', async () => {
       await approvalProcess.run()
 
       const commentBody = [
         mockConfig.commentHeader,
+        'Workflow run: http://test-url.com',
         mockConfig.commentFooter
       ].join('\n\n')
-      expect(mockGitHubClient.findCommitComment).toHaveBeenCalledWith(
-        'test-sha',
-        'test-user-id',
-        commentBody
-      )
-      expect(mockGitHubClient.createCommitComment).toHaveBeenCalledWith(
-        'test-sha',
+      expect(mockGitHubClient.getWorkflowRunUrl).toHaveBeenCalled()
+      expect(mockGitHubClient.createIssueComment).toHaveBeenCalledWith(
         commentBody
       )
       expect(core.setOutput).toHaveBeenCalledWith(
@@ -90,35 +85,11 @@ describe('ApprovalProcess', () => {
       expect(mockReactionManager.setReaction).toHaveBeenCalledWith(
         'test-comment-id',
         'test-user-id',
-        mockConfig.waitReaction
+        mockReactionManager.reactions.WAIT
       )
-      expect(
-        mockGitHubClient.deleteStalePullRequestComments
-      ).toHaveBeenCalledWith(mockConfig.commentHeader)
-      expect(mockGitHubClient.createPullRequestComment).toHaveBeenCalledWith(
-        expect.stringContaining(mockConfig.commentHeader)
-      )
-    })
-
-    test('uses existing comment when found', async () => {
-      const existingComment = {
-        id: 'existing-comment-id',
-        html_url: 'http://existing-url.com'
-      }
-      mockGitHubClient.findCommitComment.mockResolvedValue(existingComment)
-
-      await approvalProcess.run()
-
-      expect(mockGitHubClient.createCommitComment).not.toHaveBeenCalled()
-      expect(core.setOutput).toHaveBeenCalledWith(
-        'comment-id',
-        'existing-comment-id'
-      )
-      expect(mockReactionManager.setReaction).toHaveBeenCalledWith(
-        'existing-comment-id',
-        'test-user-id',
-        mockConfig.waitReaction
-      )
+      // expect(mockGitHubClient.deleteStaleIssueComments).toHaveBeenCalledWith(
+      //   mockConfig.commentHeader
+      // )
     })
 
     test('creates success reaction when approval is successful', async () => {
@@ -127,7 +98,7 @@ describe('ApprovalProcess', () => {
       expect(mockReactionManager.setReaction).toHaveBeenCalledWith(
         'test-comment-id',
         'test-user-id',
-        mockConfig.successReaction
+        mockReactionManager.reactions.SUCCESS
       )
     })
 
@@ -141,7 +112,7 @@ describe('ApprovalProcess', () => {
       expect(mockReactionManager.setReaction).toHaveBeenCalledWith(
         'test-comment-id',
         'test-user-id',
-        mockConfig.failedReaction
+        mockReactionManager.reactions.FAILED
       )
     })
   })

@@ -1,6 +1,5 @@
 name: 'Approved Commit Action'
-description:
-  'Wait for approval from a repository maintainer on a commit comment'
+description: 'Wait for approval from a repository maintainer on a workflow run'
 author: 'Balena <hello@balena.io>'
 
 inputs:
@@ -22,11 +21,11 @@ inputs:
 
 outputs:
   comment-id:
-    description: 'ID of the commit comment requiring review.'
+    description: 'ID of the comment requiring review.'
   approved-by:
-    description: 'Username of the user who approved the commit.'
+    description: 'Username of the user who approved the workflow run.'
   rejected-by:
-    description: 'Username of the user who rejected the commit.'
+    description: 'Username of the user who rejected the workflow run.'
 
 runs:
   using: 'node20'
