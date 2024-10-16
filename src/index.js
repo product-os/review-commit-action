@@ -11,8 +11,7 @@ async function run() {
   try {
     const config = {
       token: core.getInput('github-token'),
-      checkInterval: parseInt(core.getInput('check-interval')) || 10,
-      timeoutSeconds: parseInt(core.getInput('timeout-seconds')) || 0,
+      pollInterval: parseInt(core.getInput('poll-interval')) || 10,
       authorsCanReview: core.getBooleanInput('allow-authors'),
       approveReaction: '+1',
       rejectReaction: '-1',

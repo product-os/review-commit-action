@@ -23,8 +23,7 @@ describe('index.js', () => {
     core.getInput.mockImplementation(name => {
       const inputs = {
         'github-token': 'mock-token',
-        'check-interval': '10',
-        'timeout-seconds': '300'
+        'poll-interval': '10'
       }
       return inputs[name]
     })
@@ -53,8 +52,7 @@ describe('index.js', () => {
       expect.any(ReactionManager),
       expect.objectContaining({
         token: 'mock-token',
-        checkInterval: 10,
-        timeoutSeconds: 300
+        pollInterval: 10
       })
     )
 
@@ -84,8 +82,7 @@ describe('index.js', () => {
     core.getInput.mockImplementation(name => {
       const inputs = {
         'github-token': 'default-token',
-        'check-interval': '',
-        'timeout-seconds': ''
+        'poll-interval': ''
       }
       return inputs[name]
     })
@@ -98,8 +95,7 @@ describe('index.js', () => {
       expect.any(ReactionManager),
       expect.objectContaining({
         token: 'default-token',
-        checkInterval: 10, // default value
-        timeoutSeconds: 0 // default value
+        pollInterval: 10 // default value
       })
     )
   })
@@ -109,8 +105,7 @@ describe('index.js', () => {
     core.getInput.mockImplementation(name => {
       const inputs = {
         'github-token': 'mock-token',
-        'check-interval': 'invalid',
-        'timeout-seconds': 'invalid'
+        'poll-interval': 'invalid'
       }
       return inputs[name]
     })
@@ -123,8 +118,7 @@ describe('index.js', () => {
       expect.any(ReactionManager),
       expect.objectContaining({
         token: 'mock-token',
-        checkInterval: 10, // default value
-        timeoutSeconds: 0 // default value
+        pollInterval: 10 // default value
       })
     )
   })
