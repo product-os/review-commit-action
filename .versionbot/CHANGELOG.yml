@@ -1,4 +1,23 @@
 - commits:
+    - subject: Replace commit comments with a single runtime PR comment
+      hash: 6dfec5891bfea3b299f8b6b1a448d67829aec3cb
+      body: |
+        Avoid the added complexity of matching existing commit comments
+        and just track a single PR comment for the run of the workflow.
+
+        A new PR comment is created on every run and will be polled for
+        eligible reactions. For now stale PR comments are not removed.
+      footer:
+        Change-type: minor
+        change-type: minor
+        Signed-off-by: Kyle Harding <kyle@balena.io>
+        signed-off-by: Kyle Harding <kyle@balena.io>
+      author: Kyle Harding
+      nested: []
+  version: 0.1.0
+  title: ""
+  date: 2024-10-16T15:19:11.608Z
+- commits:
     - subject: Remove timeout input and use workflow step timeout-minutes directive
       hash: 0d49d255eac16f6c41976cb23ccceaf2bf6db17d
       body: |
