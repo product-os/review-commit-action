@@ -29961,7 +29961,7 @@ class ApprovalProcess {
     )
 
     try {
-      await this.waitForApproval(comment.id, this.config.checkInterval)
+      await this.waitForApproval(comment.id, this.config.pollInterval)
       await this.reactionManager.setReaction(
         comment.id,
         tokenUser.id,
@@ -29978,14 +29978,10 @@ class ApprovalProcess {
   }
 
   // Wait for approval by checking reactions on a comment
-  async waitForApproval(commentId, interval = 30, timeout = 0) {
+  async waitForApproval(commentId, interval = 30) {
     const startTime = Date.now()
     Logger.info('Checking for reactions...')
     for (;;) {
-      if (timeout > 0 && (Date.now() - startTime) / 1000 > timeout) {
-        throw new Error('Approval process timed out')
-      }
-
       const reactions =
         await this.reactionManager.getEligibleReactions(commentId)
 
@@ -30271,8 +30267,7 @@ async function run() {
   try {
     const config = {
       token: core.getInput('github-token'),
-      checkInterval: parseInt(core.getInput('check-interval')) || 10,
-      timeoutSeconds: parseInt(core.getInput('timeout-seconds')) || 0,
+      pollInterval: parseInt(core.getInput('poll-interval')) || 10,
       authorsCanReview: core.getBooleanInput('allow-authors'),
       approveReaction: '+1',
       rejectReaction: '-1',

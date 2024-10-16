@@ -12,8 +12,8 @@ where you need manual approval before proceeding with certain actions.
    approval reaction (default: 👍) to approve the workflow.
 3. The action then enters a loop, waiting for a reaction from someone with write
    access to the repository.
-4. If the required reaction is not found, it will continue looping until the job
-   times out.
+4. If the required reaction is not found, it will continue looping until the
+   step times out.
 5. If a denial reaction is received from someone with write access, the action
    will exit with an error.
 
@@ -25,8 +25,6 @@ where you need manual approval before proceeding with certain actions.
   workflow.
 - If the review is approved, the action will log the approver name and continue
   the workflow.
-- If the action times out, it will throw an error and exit the workflow. It can
-  still be re-run manually at this point.
 - Users must have at least `write` access to the repository to have their
   reactions considered as eligible. Read
   [this](https://docs.github.com/en/rest/collaborators/collaborators?apiVersion=2022-11-28#get-repository-permissions-for-a-user)
@@ -52,9 +50,9 @@ To use this action in your workflow, add the following step:
 ```yaml
 - name: Wait for Approval
   uses: product-os/review-commit-action@main
+  timeout-minutes: 60
   with:
-    check-interval: '10'
-    timeout-seconds: 600
+    poll-interval: '10'
     allow-authors: false
 ```
 
@@ -74,10 +72,8 @@ default. Read how to adjust the permissions of the automatic token
 - `github-token`: GitHub token for authentication. The user associated with this
   token is not eligible to review. Uses the actions `GITHUB_TOKEN` secret if
   unset.
-- `check-interval`: Interval in seconds between checks for reactions. Default is
+- `poll-interval`: Interval in seconds between checks for reactions. Default is
   `10`.
-- `timeout-seconds`: Timeout in seconds to wait for eligible reactions. Set to
-  `0` to disable timeout. Overall job timeout takes precedence.
 - `allow-authors`: Allow pull request commit authors to approve or reject the
   workflow. Default is `false`.
 
@@ -115,6 +111,7 @@ jobs:
       - name: Wait for Approval
         uses: product-os/review-commit-action@main
         id: commit-review
+        timeout-minutes: 60
 
       - name: Run after approval
         run: |

@@ -35,7 +35,7 @@ describe('ApprovalProcess', () => {
       commentFooter: 'Test comment footer',
       waitReaction: 'eyes',
       commentHeader: 'Test comment header',
-      checkInterval: 1,
+      pollInterval: 1,
       reviewerPermissions: ['write', 'admin'],
       rejectReaction: '-1',
       approveReaction: '+1',
@@ -147,19 +147,6 @@ describe('ApprovalProcess', () => {
   })
 
   describe('waitForApproval', () => {
-    test('throws an error when timeout is reached', async () => {
-      mockReactionManager.getEligibleReactions.mockResolvedValue([])
-
-      const waitPromise = approvalProcess.waitForApproval(
-        'test-comment-id',
-        0.1,
-        0.3
-      ) // 300ms timeout
-
-      await expect(waitPromise).rejects.toThrow('Approval process timed out')
-      expect(mockReactionManager.getEligibleReactions).toHaveBeenCalledTimes(3)
-    }, 1000) // Set test timeout to 1 second
-
     test('resolves when approved', async () => {
       mockReactionManager.getEligibleReactions.mockResolvedValue([
         { content: '+1', user: { login: 'approver' } }
