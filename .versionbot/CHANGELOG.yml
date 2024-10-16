@@ -1,4 +1,21 @@
 - commits:
+    - subject: Remove timeout input and use workflow step timeout-minutes directive
+      hash: 0d49d255eac16f6c41976cb23ccceaf2bf6db17d
+      body: |
+        The actions workflow syntax already includes an option
+        to set a timeout on a specific step, so we can remove the input to
+        simplify the action.
+      footer:
+        Change-type: patch
+        change-type: patch
+        Signed-off-by: Kyle Harding <kyle@balena.io>
+        signed-off-by: Kyle Harding <kyle@balena.io>
+      author: Kyle Harding
+      nested: []
+  version: 0.0.8
+  title: ""
+  date: 2024-10-16T14:43:27.818Z
+- commits:
     - subject: Allow custom actions on pull_request_trigger
       hash: ee2e2732675ae77572be6683001b4906852d6949
       body: ""
