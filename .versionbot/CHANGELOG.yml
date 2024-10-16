@@ -1,4 +1,17 @@
 - commits:
+    - subject: Pin dependencies
+      hash: 619d1a48ff38bf506d99f11bd53601f76245692d
+      body: |
+        Update actions/checkout
+      footer:
+        Change-type: patch
+        change-type: patch
+      author: Self-hosted Renovate Bot
+      nested: []
+  version: 0.1.2
+  title: ""
+  date: 2024-10-16T17:08:17.575Z
+- commits:
     - subject: Update dependency node to v20.18.0
       hash: 21f006563b026367d06bca954c1b6ad1085b3f79
       body: |
