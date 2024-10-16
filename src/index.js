@@ -14,10 +14,13 @@ async function run() {
       pollInterval: parseInt(core.getInput('poll-interval')) || 10,
       authorsCanReview: core.getBooleanInput('allow-authors'),
       reviewerPermissions: ['write', 'admin'],
-      commentHeader:
-        'A repository maintainer needs to approve this workflow run.',
-      commentFooter:
-        'Maintainers, please review all changes and react with :+1: to approve or :-1: to reject.'
+      commentHeaders: [
+        'A repository maintainer needs to approve this workflow run.'
+      ],
+      commentFooters: [
+        'Maintainers, please review all commits and react with :+1: to approve or :-1: to reject.',
+        'Things to look for: [GitHub Actions Security Cheat Sheet](https://0xn3va.gitbook.io/cheat-sheets/ci-cd/github/actions)'
+      ]
     }
 
     const octokit = github.getOctokit(config.token)

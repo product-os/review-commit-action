@@ -29921,15 +29921,15 @@ class ApprovalProcess {
   async run() {
     const tokenUser = await this.gitHubClient.getAuthenticatedUser()
 
-    // used for validation purposes only
-    this.gitHubClient.getPullRequestRepository()
+    // FIXME: remove this once we manually test reviewer permissions with PRs from forks
+    this.gitHubClient.throwOnContextMismatch()
 
     const runUrl = await this.gitHubClient.getWorkflowRunUrl()
 
     const commentBody = [
-      this.config.commentHeader,
-      `Workflow run: ${runUrl}`,
-      this.config.commentFooter
+      ...this.config.commentHeaders,
+      `${runUrl}`,
+      ...this.config.commentFooters
     ].join('\n\n')
 
     // await this.gitHubClient.deleteStaleIssueComments(
@@ -29947,7 +29947,11 @@ class ApprovalProcess {
     )
 
     try {
-      await this.waitForApproval(comment.id, this.config.pollInterval)
+      await this.waitForApproval(
+        comment.id,
+        tokenUser.id,
+        this.config.pollInterval
+      )
       await this.reactionManager.setReaction(
         comment.id,
         tokenUser.id,
@@ -29964,11 +29968,12 @@ class ApprovalProcess {
   }
 
   // Wait for approval by checking reactions on a comment
-  async waitForApproval(commentId, interval = 30) {
-    core.info('Waiting for reactions on comment ID:', commentId)
+  async waitForApproval(commentId, tokenUserId, interval = 30) {
+    core.info(`Checking for reactions at ${interval}-second intervals...`)
     for (;;) {
       const reactions = await this.reactionManager.getEligibleReactions(
         commentId,
+        tokenUserId,
         this.config.reviewerPermissions,
         this.config.authorsCanReview
       )
@@ -29978,7 +29983,7 @@ class ApprovalProcess {
       )?.user.login
 
       if (rejectedBy) {
-        // core.info(`Workflow rejected by ${rejectedBy}`)
+        core.debug(`Workflow rejected by ${rejectedBy}`)
         core.setOutput('rejected-by', rejectedBy)
         throw new Error(`Workflow rejected by ${rejectedBy}`)
       }
@@ -29993,7 +29998,6 @@ class ApprovalProcess {
         return
       }
 
-      core.debug('Waiting for reactions...')
       await new Promise(resolve => setTimeout(resolve, interval * 1000))
     }
   }
@@ -30029,6 +30033,8 @@ class GitHubClient {
         run_id: this.context.runId
       })
 
+    core.debug(`Workflow run data: ${workflowRun.url}`)
+
     // The html_url property contains the unique URL for this run
     return workflowRun.html_url
   }
@@ -30038,15 +30044,13 @@ class GitHubClient {
     return commits.map(c => c.author.id)
   }
 
-  getPullRequestRepository() {
+  // FIXME: remove this once we manually test reviewer permissions with PRs from forks
+  throwOnContextMismatch() {
     const payloadBaseRepo = {
       owner: this.context.payload.pull_request.base.repo.owner.login,
       repo: this.context.payload.pull_request.base.repo.name
     }
 
-    // This condition is for the untested case where the PR is from a fork.
-    // We can't take the risk that the base repo is different from the context repo.
-    // This should never happen but bail out if it ever does.
     if (JSON.stringify(this.context.repo) !== JSON.stringify(payloadBaseRepo)) {
       core.debug(JSON.stringify(this.context.repo, null, 2))
       core.debug(JSON.stringify(payloadBaseRepo, null, 2))
@@ -30054,7 +30058,6 @@ class GitHubClient {
         'Context repo does not match payload pull request base repo!'
       )
     }
-    return this.context.repo
   }
 
   // https://octokit.github.io/rest.js/v18/#pulls-list-commits
@@ -30064,33 +30067,16 @@ class GitHubClient {
       ...this.context.repo,
       pull_number: this.context.payload.pull_request.number
     })
+    core.debug(`Found ${commits.length} commits`)
+    core.debug(`Commits payload:\n${JSON.stringify(commits, null, 2)}`)
     return commits
   }
 
   async getAuthenticatedUser() {
     const query = `query { viewer { databaseId login } }`
     const { viewer } = await this.octokit.graphql(query)
+    core.info(`Authenticated as: ${viewer.login}`)
     return { login: viewer.login, id: viewer.databaseId }
-  }
-
-  // Find existing PR comment with the following criteria:
-  // - body matches commentBody
-  // - created_at matches updated_at
-  // - user matches the provided token
-  async findIssueComment(userId, body) {
-    const comments = await this.listIssueComments()
-    const comment = comments.find(
-      c =>
-        c.body === body && c.user.id === userId && c.created_at === c.updated_at
-    )
-
-    if (!comment || !comment.id) {
-      core.info('No matching issue comment found.')
-      return null
-    }
-
-    core.info(`Found existing issue comment: ${comment.url}`)
-    return comment
   }
 
   // Create a new PR comment with the provided body
@@ -30108,6 +30094,7 @@ class GitHubClient {
     }
 
     core.info(`Created new issue comment: ${comment.url}`)
+    core.debug(`Comment payload:\n${JSON.stringify(comment, null, 2)}`)
     return comment
   }
 
@@ -30118,6 +30105,8 @@ class GitHubClient {
       ...this.context.repo,
       issue_number: this.context.payload.pull_request.number
     })
+    core.debug(`Found ${comments.length} comments`)
+    core.debug(`Comments payload:\n${JSON.stringify(comments, null, 2)}`)
     return comments
   }
 
@@ -30138,6 +30127,7 @@ class GitHubClient {
         comment_id: comment.id
       })
     }
+    core.info(`Deleted ${filteredComments.length} stale comments.`)
   }
 
   // https://octokit.github.io/rest.js/v21/#repos-get-collaborator-permission-level
@@ -30148,6 +30138,7 @@ class GitHubClient {
         ...this.context.repo,
         username
       })
+    core.debug(`User ${username} has permission: ${permissionData.permission}`)
     return permissionData.permission
   }
 
@@ -30160,6 +30151,8 @@ class GitHubClient {
         comment_id: commentId,
         content
       })
+    core.info(`Created new :${reaction.content}: reaction ID ${reaction.id}`)
+    core.debug(`Reaction payload:\n${JSON.stringify(reaction, null, 2)}`)
     return reaction
   }
 
@@ -30171,6 +30164,8 @@ class GitHubClient {
         ...this.context.repo,
         comment_id: commentId
       })
+    core.debug(`Found ${reactions.length} reactions`)
+    core.debug(`Reactions payload:\n${JSON.stringify(reactions, null, 2)}`)
     return reactions
   }
 
@@ -30182,6 +30177,7 @@ class GitHubClient {
       comment_id: commentId,
       reaction_id: reactionId
     })
+    core.info(`Deleted reaction ID ${reactionId}`)
   }
 }
 
@@ -30209,10 +30205,13 @@ async function run() {
       pollInterval: parseInt(core.getInput('poll-interval')) || 10,
       authorsCanReview: core.getBooleanInput('allow-authors'),
       reviewerPermissions: ['write', 'admin'],
-      commentHeader:
-        'A repository maintainer needs to approve this workflow run.',
-      commentFooter:
-        'Maintainers, please review all changes and react with :+1: to approve or :-1: to reject.'
+      commentHeaders: [
+        'A repository maintainer needs to approve this workflow run.'
+      ],
+      commentFooters: [
+        'Maintainers, please review all commits and react with :+1: to approve or :-1: to reject.',
+        'Things to look for: [GitHub Actions Security Cheat Sheet](https://0xn3va.gitbook.io/cheat-sheets/ci-cd/github/actions)'
+      ]
     }
 
     const octokit = github.getOctokit(config.token)
@@ -30269,8 +30268,8 @@ class ReactionManager {
     return this.gitHubClient.getReactionsForIssueComment(commentId)
   }
 
-  async getReactionsByUser(commitId, userId) {
-    const reactions = await this.getReactions(commitId)
+  async getReactionsByUser(commentId, userId) {
+    const reactions = await this.getReactions(commentId)
     const filtered = []
 
     for (const reaction of reactions) {
@@ -30282,30 +30281,33 @@ class ReactionManager {
     return filtered
   }
 
-  async removeReactionsByUser(commitId, userId) {
-    const actorReactions = await this.getReactionsByUser(commitId, userId)
+  async removeReactionsByUser(commentId, userId) {
+    const actorReactions = await this.getReactionsByUser(commentId, userId)
     for (const reaction of actorReactions) {
-      this.deleteReaction(commitId, reaction.id)
+      this.deleteReaction(commentId, reaction.id)
     }
   }
 
   // Set a single reaction on a comment, removing other reactions by this actor
-  async setReaction(commitId, userId, content) {
-    await this.removeReactionsByUser(commitId, userId)
-    return this.createReaction(commitId, content)
+  async setReaction(commentId, userId, content) {
+    await this.removeReactionsByUser(commentId, userId)
+    return this.createReaction(commentId, content)
   }
 
   // Eligible reactions are those by users with the required permissions
-  async getEligibleReactions(commentId, permissions, authorsCanReview) {
+  async getEligibleReactions(
+    commentId,
+    tokenUserId,
+    permissions,
+    authorsCanReview
+  ) {
     const reactions = await this.getReactions(commentId)
     const filtered = []
 
-    const tokenUser = await this.gitHubClient.getAuthenticatedUser()
+    // Get all commit authors
+    const authors = await this.gitHubClient.getPullRequestAuthors()
 
     for (const reaction of reactions) {
-      // Get IDs of all commit authors
-      const authors = await this.gitHubClient.getPullRequestAuthors()
-
       // Exclude reactions by commit authors
       if (!authorsCanReview && authors.includes(reaction.user.id)) {
         core.debug(
@@ -30315,7 +30317,7 @@ class ReactionManager {
       }
 
       // Exclude reactions by the token user
-      if (reaction.user.id === tokenUser.id) {
+      if (reaction.user.id === tokenUserId) {
         core.debug(
           `Ignoring reaction :${reaction.content}: by ${reaction.user.login} (user is the token user)`
         )
@@ -30333,7 +30335,7 @@ class ReactionManager {
         continue
       }
 
-      core.info(
+      core.debug(
         `Found reaction :${reaction.content}: by ${reaction.user.login}`
       )
       filtered.push(reaction)

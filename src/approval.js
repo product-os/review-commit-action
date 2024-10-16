@@ -10,15 +10,15 @@ class ApprovalProcess {
   async run() {
     const tokenUser = await this.gitHubClient.getAuthenticatedUser()
 
-    // used for validation purposes only
-    this.gitHubClient.getPullRequestRepository()
+    // FIXME: remove this once we manually test reviewer permissions with PRs from forks
+    this.gitHubClient.throwOnContextMismatch()
 
     const runUrl = await this.gitHubClient.getWorkflowRunUrl()
 
     const commentBody = [
-      this.config.commentHeader,
-      `Workflow run: ${runUrl}`,
-      this.config.commentFooter
+      ...this.config.commentHeaders,
+      `${runUrl}`,
+      ...this.config.commentFooters
     ].join('\n\n')
 
     // await this.gitHubClient.deleteStaleIssueComments(
@@ -36,7 +36,11 @@ class ApprovalProcess {
     )
 
     try {
-      await this.waitForApproval(comment.id, this.config.pollInterval)
+      await this.waitForApproval(
+        comment.id,
+        tokenUser.id,
+        this.config.pollInterval
+      )
       await this.reactionManager.setReaction(
         comment.id,
         tokenUser.id,
@@ -53,11 +57,12 @@ class ApprovalProcess {
   }
 
   // Wait for approval by checking reactions on a comment
-  async waitForApproval(commentId, interval = 30) {
-    core.info('Waiting for reactions on comment ID:', commentId)
+  async waitForApproval(commentId, tokenUserId, interval = 30) {
+    core.info(`Checking for reactions at ${interval}-second intervals...`)
     for (;;) {
       const reactions = await this.reactionManager.getEligibleReactions(
         commentId,
+        tokenUserId,
         this.config.reviewerPermissions,
         this.config.authorsCanReview
       )
@@ -67,7 +72,7 @@ class ApprovalProcess {
       )?.user.login
 
       if (rejectedBy) {
-        // core.info(`Workflow rejected by ${rejectedBy}`)
+        core.debug(`Workflow rejected by ${rejectedBy}`)
         core.setOutput('rejected-by', rejectedBy)
         throw new Error(`Workflow rejected by ${rejectedBy}`)
       }
@@ -82,7 +87,6 @@ class ApprovalProcess {
         return
       }
 
-      core.debug('Waiting for reactions...')
       await new Promise(resolve => setTimeout(resolve, interval * 1000))
     }
   }

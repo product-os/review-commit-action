@@ -27,8 +27,8 @@ class ReactionManager {
     return this.gitHubClient.getReactionsForIssueComment(commentId)
   }
 
-  async getReactionsByUser(commitId, userId) {
-    const reactions = await this.getReactions(commitId)
+  async getReactionsByUser(commentId, userId) {
+    const reactions = await this.getReactions(commentId)
     const filtered = []
 
     for (const reaction of reactions) {
@@ -40,30 +40,33 @@ class ReactionManager {
     return filtered
   }
 
-  async removeReactionsByUser(commitId, userId) {
-    const actorReactions = await this.getReactionsByUser(commitId, userId)
+  async removeReactionsByUser(commentId, userId) {
+    const actorReactions = await this.getReactionsByUser(commentId, userId)
     for (const reaction of actorReactions) {
-      this.deleteReaction(commitId, reaction.id)
+      this.deleteReaction(commentId, reaction.id)
     }
   }
 
   // Set a single reaction on a comment, removing other reactions by this actor
-  async setReaction(commitId, userId, content) {
-    await this.removeReactionsByUser(commitId, userId)
-    return this.createReaction(commitId, content)
+  async setReaction(commentId, userId, content) {
+    await this.removeReactionsByUser(commentId, userId)
+    return this.createReaction(commentId, content)
   }
 
   // Eligible reactions are those by users with the required permissions
-  async getEligibleReactions(commentId, permissions, authorsCanReview) {
+  async getEligibleReactions(
+    commentId,
+    tokenUserId,
+    permissions,
+    authorsCanReview
+  ) {
     const reactions = await this.getReactions(commentId)
     const filtered = []
 
-    const tokenUser = await this.gitHubClient.getAuthenticatedUser()
+    // Get all commit authors
+    const authors = await this.gitHubClient.getPullRequestAuthors()
 
     for (const reaction of reactions) {
-      // Get IDs of all commit authors
-      const authors = await this.gitHubClient.getPullRequestAuthors()
-
       // Exclude reactions by commit authors
       if (!authorsCanReview && authors.includes(reaction.user.id)) {
         core.debug(
@@ -73,7 +76,7 @@ class ReactionManager {
       }
 
       // Exclude reactions by the token user
-      if (reaction.user.id === tokenUser.id) {
+      if (reaction.user.id === tokenUserId) {
         core.debug(
           `Ignoring reaction :${reaction.content}: by ${reaction.user.login} (user is the token user)`
         )
@@ -91,7 +94,7 @@ class ReactionManager {
         continue
       }
 
-      core.info(
+      core.debug(
         `Found reaction :${reaction.content}: by ${reaction.user.login}`
       )
       filtered.push(reaction)
