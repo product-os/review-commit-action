@@ -127,6 +127,9 @@ describe('ReactionManager', () => {
 
     await reactionManager.setReaction(123, 101, 'eyes')
 
+    expect(mockGitHubClient.getReactionsForIssueComment).toHaveBeenCalledWith(
+      123
+    )
     expect(
       mockGitHubClient.deleteReactionForIssueComment
     ).toHaveBeenCalledTimes(2)
@@ -142,6 +145,28 @@ describe('ReactionManager', () => {
       123,
       'eyes'
     )
+    expect(core.saveState).toHaveBeenCalledWith('reaction', 'eyes')
+  })
+
+  test('setReaction skips setting reaction if it is already set', async () => {
+    core.getState.mockImplementation(key => {
+      const states = {
+        reaction: 'eyes'
+      }
+      return states[key]
+    })
+
+    await reactionManager.setReaction(123, 101, 'eyes')
+
+    expect(core.getState).toHaveBeenCalledWith('reaction')
+    expect(mockGitHubClient.getReactionsForIssueComment).not.toHaveBeenCalled()
+    expect(
+      mockGitHubClient.deleteReactionForIssueComment
+    ).not.toHaveBeenCalled()
+    expect(
+      mockGitHubClient.createReactionForIssueComment
+    ).not.toHaveBeenCalled()
+    expect(core.saveState).not.toHaveBeenCalled()
   })
 
   test('getEligibleReactions filters reactions based on permissions and authors', async () => {

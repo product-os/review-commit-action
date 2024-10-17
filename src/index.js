@@ -6,6 +6,7 @@ const github = require('@actions/github')
 const { GitHubClient } = require('./client')
 const { ReactionManager } = require('./reactions')
 const { ApprovalProcess } = require('./approval')
+const { PostProcess } = require('./post')
 
 async function run() {
   try {
@@ -26,12 +27,21 @@ async function run() {
     const octokit = github.getOctokit(config.token)
     const gitHubClient = new GitHubClient(octokit, github.context)
     const reactionManager = new ReactionManager(gitHubClient)
+
+    // Check if this is a post-execution run
+    // eslint-disable-next-line no-extra-boolean-cast
+    if (!!core.getState('isPost')) {
+      const postProcess = new PostProcess(gitHubClient, reactionManager)
+      await postProcess.run()
+      return
+    }
+
+    core.saveState('isPost', 'true')
     const approvalProcess = new ApprovalProcess(
       gitHubClient,
       reactionManager,
       config
     )
-
     await approvalProcess.run()
   } catch (error) {
     core.setFailed(error.message)

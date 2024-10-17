@@ -3,12 +3,14 @@ const github = require('@actions/github')
 const { GitHubClient } = require('../src/client')
 const { ReactionManager } = require('../src/reactions')
 const { ApprovalProcess } = require('../src/approval')
+const { PostProcess } = require('../src/post')
 
 jest.mock('@actions/core')
 jest.mock('@actions/github')
 jest.mock('../src/client')
 jest.mock('../src/reactions')
 jest.mock('../src/approval')
+jest.mock('../src/post')
 
 describe('index.js', () => {
   let run
@@ -121,5 +123,59 @@ describe('index.js', () => {
         pollInterval: 10 // default value
       })
     )
+  })
+
+  test('run executes the post process successfully', async () => {
+    core.getInput.mockImplementation(name => {
+      const inputs = {
+        'github-token': 'mock-token'
+      }
+      return inputs[name]
+    })
+
+    core.getState.mockImplementation(key => {
+      const states = {
+        'comment-id': 'test-comment-id',
+        'approved-by': 'test-approver',
+        isPost: 'true'
+      }
+      return states[key]
+    })
+
+    // Mock GitHub client
+    const mockOctokit = {}
+    github.getOctokit.mockReturnValue(mockOctokit)
+
+    // Mock PostProcess run method
+    // PostProcess.mockImplementation(() => ({
+    //   run: jest.fn().mockResolvedValue(undefined)
+    // }))
+    // FIXME: Why does the above not mock the run method?
+    jest.mock('../src/post', () => ({
+      PostProcess: jest.fn().mockImplementation(() => ({
+        run: jest.fn().mockResolvedValue(undefined)
+      }))
+    }))
+
+    await run()
+
+    // Verify that the GitHub client was created
+    expect(github.getOctokit).toHaveBeenCalledWith('mock-token')
+    expect(GitHubClient).toHaveBeenCalledWith(mockOctokit, github.context)
+
+    // Verify that ReactionManager was created
+    expect(ReactionManager).toHaveBeenCalled()
+
+    // Verify that PostProcess was created
+    expect(PostProcess).toHaveBeenCalledWith(
+      expect.any(GitHubClient),
+      expect.any(ReactionManager)
+    )
+
+    // Verify that the post process was run
+    expect(PostProcess.mock.instances[0].run).toHaveBeenCalled()
+
+    // Verify that no error was set
+    expect(core.setFailed).not.toHaveBeenCalled()
   })
 })
