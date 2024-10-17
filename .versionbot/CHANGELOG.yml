@@ -1,4 +1,21 @@
 - commits:
+    - subject: Run action post command on teardown to set reactions
+      hash: a7f1423024f133d04d44577e6a69752ccc7de04a
+      body: |
+        In case the job was cancelled, or failed for other reasons,
+        we still want to try and update the comment reaction to failed
+        if possible.
+      footer:
+        Change-type: patch
+        change-type: patch
+        Signed-off-by: Kyle Harding <kyle@balena.io>
+        signed-off-by: Kyle Harding <kyle@balena.io>
+      author: Kyle Harding
+      nested: []
+  version: 0.1.4
+  title: ""
+  date: 2024-10-17T14:32:48.124Z
+- commits:
     - subject: Remove logger abstraction
       hash: d926405764fdd7c9d25251940bb3e26c9374f0ab
       body: |
