@@ -30262,6 +30262,7 @@ class PostProcess {
 
   async run() {
     try {
+      const reaction = core.getState('reaction')
       const commentId = core.getState('comment-id')
       const wasApproved = core.getState('approved-by') !== ''
       const tokenUser = await this.gitHubClient.getAuthenticatedUser()
@@ -30344,8 +30345,15 @@ class ReactionManager {
 
   // Set a single reaction on a comment, removing other reactions by this actor
   async setReaction(commentId, userId, content) {
+    if (core.getState('reaction') === content) {
+      core.debug(
+        `Skipping setting reaction :${content}: (reaction is already set)`
+      )
+      return
+    }
     await this.removeReactionsByUser(commentId, userId)
-    return this.createReaction(commentId, content)
+    await this.createReaction(commentId, content)
+    core.saveState('reaction', content)
   }
 
   // Eligible reactions are those by users with the required permissions

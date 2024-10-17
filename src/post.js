@@ -8,6 +8,7 @@ class PostProcess {
 
   async run() {
     try {
+      const reaction = core.getState('reaction')
       const commentId = core.getState('comment-id')
       const wasApproved = core.getState('approved-by') !== ''
       const tokenUser = await this.gitHubClient.getAuthenticatedUser()
