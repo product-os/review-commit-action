@@ -1,4 +1,17 @@
 - commits:
+    - subject: Update github/codeql-action digest to 6624720
+      hash: 87327de0c08bd90f20f3dbfd560803daebedf8b5
+      body: |
+        Update github/codeql-action
+      footer:
+        Change-type: patch
+        change-type: patch
+      author: Self-hosted Renovate Bot
+      nested: []
+  version: 0.1.5
+  title: ""
+  date: 2024-10-22T16:06:01.980Z
+- commits:
     - subject: Run action post command on teardown to set reactions
       hash: a7f1423024f133d04d44577e6a69752ccc7de04a
       body: |
