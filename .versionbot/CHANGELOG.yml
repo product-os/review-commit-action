@@ -1,4 +1,17 @@
 - commits:
+    - subject: Update actions/checkout digest to 11bd719
+      hash: 64cdf7259721be76d946e7c443542966290f1185
+      body: |
+        Update actions/checkout
+      footer:
+        Change-type: patch
+        change-type: patch
+      author: Self-hosted Renovate Bot
+      nested: []
+  version: 0.1.6
+  title: ""
+  date: 2024-10-23T17:09:34.033Z
+- commits:
     - subject: Update github/codeql-action digest to 6624720
       hash: 87327de0c08bd90f20f3dbfd560803daebedf8b5
       body: |
