@@ -1,4 +1,17 @@
 - commits:
+    - subject: Update actions/setup-node digest to 39370e3
+      hash: ebfec900ce82878b55ac7c5a307cbc720ef2f284
+      body: |
+        Update actions/setup-node
+      footer:
+        Change-type: patch
+        change-type: patch
+      author: Self-hosted Renovate Bot
+      nested: []
+  version: 0.1.7
+  title: ""
+  date: 2024-10-24T15:07:38.505Z
+- commits:
     - subject: Update actions/checkout digest to 11bd719
       hash: 64cdf7259721be76d946e7c443542966290f1185
       body: |
