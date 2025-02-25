@@ -1,4 +1,17 @@
 - commits:
+    - subject: Update actions/setup-node digest to 1d0ff46
+      hash: cb0d832334fdcb1a0482d6b6809014a9a7543d31
+      body: |
+        Update actions/setup-node
+      footer:
+        Change-type: patch
+        change-type: patch
+      author: balena-renovate[bot]
+      nested: []
+  version: 0.1.9
+  title: ""
+  date: 2025-02-25T21:05:50.351Z
+- commits:
     - subject: Handle empty author fields on returned commits
       hash: dde392ed1db92f3e9378721ea2139268b8fb6a5b
       body: |
