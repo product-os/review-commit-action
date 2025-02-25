@@ -1,4 +1,17 @@
 - commits:
+    - subject: Update super-linter/super-linter digest to 85f7611
+      hash: 2bd925db076efb0df12f07ce4988980d5c7373ba
+      body: |
+        Update super-linter/super-linter
+      footer:
+        Change-type: patch
+        change-type: patch
+      author: balena-renovate[bot]
+      nested: []
+  version: 0.1.11
+  title: ""
+  date: 2025-02-25T22:04:17.670Z
+- commits:
     - subject: Update github/codeql-action digest to b56ba49
       hash: 7efdd4e732e0e4c3e6e37a38d7ba8a3943265804
       body: |
