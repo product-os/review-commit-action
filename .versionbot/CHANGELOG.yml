@@ -1,4 +1,19 @@
 - commits:
+    - subject: Handle empty author fields on returned commits
+      hash: dde392ed1db92f3e9378721ea2139268b8fb6a5b
+      body: |
+        Also exclude all committers from approvals.
+      footer:
+        Change-type: patch
+        change-type: patch
+        Signed-off-by: Kyle Harding <kyle@balena.io>
+        signed-off-by: Kyle Harding <kyle@balena.io>
+      author: Kyle Harding
+      nested: []
+  version: 0.1.8
+  title: ""
+  date: 2025-02-25T20:46:18.236Z
+- commits:
     - subject: Update actions/setup-node digest to 39370e3
       hash: ebfec900ce82878b55ac7c5a307cbc720ef2f284
       body: |
