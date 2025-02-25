@@ -30044,7 +30044,13 @@ class GitHubClient {
 
   async getPullRequestAuthors() {
     const commits = await this.getPullRequestCommits()
-    return commits.map(c => c.author.id)
+    // Get both author and committer IDs, filter out nulls, and remove duplicates.
+    // In some cases, the author can be null, or different from the committer.
+    return [
+      ...new Set(
+        commits.flatMap(c => [c.author?.id, c.committer?.id]).filter(Boolean)
+      )
+    ]
   }
 
   // FIXME: remove this once we manually test reviewer permissions with PRs from forks

@@ -10,6 +10,8 @@ on:
     branches: [main, master]
 
 permissions:
+  contents: read
+  packages: read
   # Required to create comments on pull requests.
   pull-requests: write
 
