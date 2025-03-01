@@ -37,22 +37,6 @@ class GitHubClient {
     ]
   }
 
-  // FIXME: remove this once we manually test reviewer permissions with PRs from forks
-  throwOnContextMismatch() {
-    const payloadBaseRepo = {
-      owner: this.context.payload.pull_request.base.repo.owner.login,
-      repo: this.context.payload.pull_request.base.repo.name
-    }
-
-    if (JSON.stringify(this.context.repo) !== JSON.stringify(payloadBaseRepo)) {
-      core.debug(JSON.stringify(this.context.repo, null, 2))
-      core.debug(JSON.stringify(payloadBaseRepo, null, 2))
-      throw new Error(
-        'Context repo does not match payload pull request base repo!'
-      )
-    }
-  }
-
   // https://octokit.github.io/rest.js/v18/#pulls-list-commits
   // https://docs.github.com/en/rest/pulls/pulls#list-commits-on-a-pull-request
   async getPullRequestCommits() {

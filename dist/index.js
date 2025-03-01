@@ -29921,9 +29921,6 @@ class ApprovalProcess {
   async run() {
     const tokenUser = await this.gitHubClient.getAuthenticatedUser()
 
-    // FIXME: remove this once we manually test reviewer permissions with PRs from forks
-    this.gitHubClient.throwOnContextMismatch()
-
     const runUrl = await this.gitHubClient.getWorkflowRunUrl()
 
     const commentBody = [
@@ -29974,7 +29971,6 @@ class ApprovalProcess {
     for (;;) {
       const reactions = await this.reactionManager.getEligibleReactions(
         commentId,
-        tokenUserId,
         this.config.reviewerPermissions,
         this.config.authorsCanReview
       )
@@ -30051,22 +30047,6 @@ class GitHubClient {
         commits.flatMap(c => [c.author?.id, c.committer?.id]).filter(Boolean)
       )
     ]
-  }
-
-  // FIXME: remove this once we manually test reviewer permissions with PRs from forks
-  throwOnContextMismatch() {
-    const payloadBaseRepo = {
-      owner: this.context.payload.pull_request.base.repo.owner.login,
-      repo: this.context.payload.pull_request.base.repo.name
-    }
-
-    if (JSON.stringify(this.context.repo) !== JSON.stringify(payloadBaseRepo)) {
-      core.debug(JSON.stringify(this.context.repo, null, 2))
-      core.debug(JSON.stringify(payloadBaseRepo, null, 2))
-      throw new Error(
-        'Context repo does not match payload pull request base repo!'
-      )
-    }
   }
 
   // https://octokit.github.io/rest.js/v18/#pulls-list-commits
@@ -30363,12 +30343,7 @@ class ReactionManager {
   }
 
   // Eligible reactions are those by users with the required permissions
-  async getEligibleReactions(
-    commentId,
-    tokenUserId,
-    permissions,
-    authorsCanReview
-  ) {
+  async getEligibleReactions(commentId, permissions, authorsCanReview) {
     const reactions = await this.getReactions(commentId)
     const filtered = []
 
@@ -30380,14 +30355,6 @@ class ReactionManager {
       if (!authorsCanReview && authors.includes(reaction.user.id)) {
         core.debug(
           `Ignoring reaction :${reaction.content}: by ${reaction.user.login} (user is a commit author)`
-        )
-        continue
-      }
-
-      // Exclude reactions by the token user
-      if (reaction.user.id === tokenUserId) {
-        core.debug(
-          `Ignoring reaction :${reaction.content}: by ${reaction.user.login} (user is the token user)`
         )
         continue
       }

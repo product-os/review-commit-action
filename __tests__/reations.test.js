@@ -193,12 +193,11 @@ describe('ReactionManager', () => {
 
     const eligibleReactions = await reactionManager.getEligibleReactions(
       123,
-      102,
       ['write', 'admin'],
       false
     )
 
-    expect(eligibleReactions).toEqual([mockReactions[3]])
+    expect(eligibleReactions).toEqual([mockReactions[1], mockReactions[3]])
 
     expect(core.debug).toHaveBeenCalledWith(
       expect.stringContaining(
@@ -206,9 +205,7 @@ describe('ReactionManager', () => {
       )
     )
     expect(core.debug).toHaveBeenCalledWith(
-      expect.stringContaining(
-        'Ignoring reaction :-1: by user2 (user is the token user)'
-      )
+      expect.stringContaining('Found reaction :-1: by user2')
     )
     expect(core.debug).toHaveBeenCalledWith(
       expect.stringContaining(

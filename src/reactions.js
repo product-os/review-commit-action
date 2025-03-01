@@ -61,12 +61,7 @@ class ReactionManager {
   }
 
   // Eligible reactions are those by users with the required permissions
-  async getEligibleReactions(
-    commentId,
-    tokenUserId,
-    permissions,
-    authorsCanReview
-  ) {
+  async getEligibleReactions(commentId, permissions, authorsCanReview) {
     const reactions = await this.getReactions(commentId)
     const filtered = []
 
@@ -78,14 +73,6 @@ class ReactionManager {
       if (!authorsCanReview && authors.includes(reaction.user.id)) {
         core.debug(
           `Ignoring reaction :${reaction.content}: by ${reaction.user.login} (user is a commit author)`
-        )
-        continue
-      }
-
-      // Exclude reactions by the token user
-      if (reaction.user.id === tokenUserId) {
-        core.debug(
-          `Ignoring reaction :${reaction.content}: by ${reaction.user.login} (user is the token user)`
         )
         continue
       }

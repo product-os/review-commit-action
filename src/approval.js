@@ -10,9 +10,6 @@ class ApprovalProcess {
   async run() {
     const tokenUser = await this.gitHubClient.getAuthenticatedUser()
 
-    // FIXME: remove this once we manually test reviewer permissions with PRs from forks
-    this.gitHubClient.throwOnContextMismatch()
-
     const runUrl = await this.gitHubClient.getWorkflowRunUrl()
 
     const commentBody = [
@@ -63,7 +60,6 @@ class ApprovalProcess {
     for (;;) {
       const reactions = await this.reactionManager.getEligibleReactions(
         commentId,
-        tokenUserId,
         this.config.reviewerPermissions,
         this.config.authorsCanReview
       )

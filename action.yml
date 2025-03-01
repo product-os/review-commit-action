@@ -5,8 +5,8 @@ author: 'Balena <hello@balena.io>'
 inputs:
   github-token:
     description:
-      'GitHub token for authentication. The user associated with this token is
-      not eligible to review.'
+      'GitHub token for authentication. Requires `pull-requests: write`
+      permission.'
     required: false
     default: ${{ github.token }}
   poll-interval:

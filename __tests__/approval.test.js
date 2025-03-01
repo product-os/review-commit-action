@@ -17,7 +17,6 @@ describe('ApprovalProcess', () => {
       getPullRequestMergeRef: jest.fn(),
       getRefSha: jest.fn(),
       getAuthenticatedUser: jest.fn(),
-      throwOnContextMismatch: jest.fn(),
       createIssueComment: jest.fn(),
       deleteStaleIssueComments: jest.fn(),
       getWorkflowRunUrl: jest.fn()
@@ -55,7 +54,6 @@ describe('ApprovalProcess', () => {
       mockGitHubClient.getAuthenticatedUser.mockResolvedValue({
         id: 'test-user-id'
       })
-      mockGitHubClient.throwOnContextMismatch.mockReturnValue(null)
       mockGitHubClient.createIssueComment.mockResolvedValue({
         id: 'test-comment-id',
         html_url: 'http://test-url.com'

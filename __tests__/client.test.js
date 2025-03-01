@@ -77,18 +77,6 @@ describe('GitHubClient', () => {
     )
   })
 
-  test('throwOnContextMismatch throws an error when the context repo does not match the payload base repo', () => {
-    gitHubClient.context.payload.pull_request.base.repo.owner.login =
-      'otherOwner'
-    expect(() => gitHubClient.throwOnContextMismatch()).toThrow(
-      'Context repo does not match payload pull request base repo!'
-    )
-  })
-
-  test('throwOnContextMismatch does not throw an error when the context repo matches the payload base repo', () => {
-    expect(() => gitHubClient.throwOnContextMismatch()).not.toThrow()
-  })
-
   test('getPullRequestAuthors returns the correct author IDs', async () => {
     const mockCommits = [
       {
