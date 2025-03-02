@@ -29938,19 +29938,19 @@ class ApprovalProcess {
     core.saveState('comment-id', comment.id)
     core.setOutput('comment-id', comment.id)
 
-    await this.reactionManager.setReaction(
-      comment.id,
-      this.reactionManager.reactions.WAIT
-    )
+    // await this.reactionManager.createReaction(
+    //   comment.id,
+    //   this.reactionManager.reactions.WAIT
+    // )
 
     try {
       await this.waitForApproval(comment.id, this.config.pollInterval)
-      await this.reactionManager.setReaction(
+      await this.reactionManager.createReaction(
         comment.id,
         this.reactionManager.reactions.SUCCESS
       )
     } catch (error) {
-      await this.reactionManager.setReaction(
+      await this.reactionManager.createReaction(
         comment.id,
         this.reactionManager.reactions.FAILED
       )
@@ -30133,7 +30133,7 @@ class GitHubClient {
         comment_id: commentId,
         content
       })
-    core.info(`Created new :${reaction.content}: reaction ID ${reaction.id}`)
+    core.info(`Created :${reaction.content}: reaction ID ${reaction.id}`)
     core.debug(`Reaction payload:\n${JSON.stringify(reaction, null, 2)}`)
     return reaction
   }
@@ -30241,19 +30241,17 @@ class PostProcess {
 
   async run() {
     try {
-      const reaction = core.getState('reaction')
       const commentId = core.getState('comment-id')
       const wasApproved = core.getState('approved-by') !== ''
-      const tokenUser = await this.gitHubClient.getAuthenticatedUser()
 
       if (commentId && wasApproved) {
-        await this.reactionManager.setReaction(
+        await this.reactionManager.createReaction(
           commentId,
           this.reactionManager.reactions.SUCCESS
         )
         return
       }
-      await this.reactionManager.setReaction(
+      await this.reactionManager.createReaction(
         commentId,
         this.reactionManager.reactions.FAILED
       )
@@ -30285,10 +30283,13 @@ class ReactionManager {
     })
   }
 
+  // Create a reaction for a comment
+  // If the reaction already exists this will be no-op
   async createReaction(commentId, content) {
     return this.gitHubClient.createReactionForIssueComment(commentId, content)
   }
 
+  // Delete a reaction for a comment
   async deleteReaction(commentId, reactionId) {
     return this.gitHubClient.deleteReactionForIssueComment(
       commentId,
@@ -30296,33 +30297,9 @@ class ReactionManager {
     )
   }
 
+  // Get all reactions for a comment
   async getReactions(commentId) {
     return this.gitHubClient.getReactionsForIssueComment(commentId)
-  }
-
-  async getReactionsByUser(commentId, userId) {
-    const reactions = await this.getReactions(commentId)
-    const filtered = []
-
-    for (const reaction of reactions) {
-      if (reaction.user.id === userId) {
-        filtered.push(reaction)
-      }
-    }
-
-    return filtered
-  }
-
-  // Create a reaction on a comment
-  async setReaction(commentId, content) {
-    if (core.getState('reaction') === content) {
-      core.debug(
-        `Skipping setting reaction :${content}: (reaction is already set)`
-      )
-      return
-    }
-    await this.createReaction(commentId, content)
-    core.saveState('reaction', content)
   }
 
   // Eligible reactions are those by users with the required permissions

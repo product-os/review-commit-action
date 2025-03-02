@@ -12,10 +12,13 @@ class ReactionManager {
     })
   }
 
+  // Create a reaction for a comment
+  // If the reaction already exists this will be no-op
   async createReaction(commentId, content) {
     return this.gitHubClient.createReactionForIssueComment(commentId, content)
   }
 
+  // Delete a reaction for a comment
   async deleteReaction(commentId, reactionId) {
     return this.gitHubClient.deleteReactionForIssueComment(
       commentId,
@@ -23,33 +26,9 @@ class ReactionManager {
     )
   }
 
+  // Get all reactions for a comment
   async getReactions(commentId) {
     return this.gitHubClient.getReactionsForIssueComment(commentId)
-  }
-
-  async getReactionsByUser(commentId, userId) {
-    const reactions = await this.getReactions(commentId)
-    const filtered = []
-
-    for (const reaction of reactions) {
-      if (reaction.user.id === userId) {
-        filtered.push(reaction)
-      }
-    }
-
-    return filtered
-  }
-
-  // Create a reaction on a comment
-  async setReaction(commentId, content) {
-    if (core.getState('reaction') === content) {
-      core.debug(
-        `Skipping setting reaction :${content}: (reaction is already set)`
-      )
-      return
-    }
-    await this.createReaction(commentId, content)
-    core.saveState('reaction', content)
   }
 
   // Eligible reactions are those by users with the required permissions

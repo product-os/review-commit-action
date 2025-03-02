@@ -16,7 +16,7 @@ describe('PostProcess', () => {
     }
 
     mockReactionManager = {
-      setReaction: jest.fn(),
+      createReaction: jest.fn(),
       reactions: {
         SUCCESS: 'rocket',
         FAILED: 'confused'
@@ -43,8 +43,7 @@ describe('PostProcess', () => {
     test('creates success reaction when approval is successful', async () => {
       await postProcess.run()
 
-      expect(mockGitHubClient.getAuthenticatedUser).toHaveBeenCalled()
-      expect(mockReactionManager.setReaction).toHaveBeenCalledWith(
+      expect(mockReactionManager.createReaction).toHaveBeenCalledWith(
         'test-comment-id',
         mockReactionManager.reactions.SUCCESS
       )
@@ -61,22 +60,21 @@ describe('PostProcess', () => {
 
       await postProcess.run()
 
-      expect(mockGitHubClient.getAuthenticatedUser).toHaveBeenCalled()
-      expect(mockReactionManager.setReaction).toHaveBeenCalledWith(
+      expect(mockReactionManager.createReaction).toHaveBeenCalledWith(
         'test-comment-id',
         mockReactionManager.reactions.FAILED
       )
     })
 
     test('logs a warning when an error occurs', async () => {
-      mockGitHubClient.getAuthenticatedUser.mockRejectedValue(
-        new Error('Authentication failed')
+      mockReactionManager.createReaction.mockRejectedValue(
+        new Error('Create reaction failed')
       )
 
       await postProcess.run()
 
       expect(core.warning).toHaveBeenCalledWith(
-        'Cleanup failed: Authentication failed'
+        'Cleanup failed: Create reaction failed'
       )
     })
   })

@@ -128,7 +128,7 @@ class GitHubClient {
         comment_id: commentId,
         content
       })
-    core.info(`Created new :${reaction.content}: reaction ID ${reaction.id}`)
+    core.info(`Created :${reaction.content}: reaction ID ${reaction.id}`)
     core.debug(`Reaction payload:\n${JSON.stringify(reaction, null, 2)}`)
     return reaction
   }

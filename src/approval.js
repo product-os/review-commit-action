@@ -27,19 +27,19 @@ class ApprovalProcess {
     core.saveState('comment-id', comment.id)
     core.setOutput('comment-id', comment.id)
 
-    await this.reactionManager.setReaction(
-      comment.id,
-      this.reactionManager.reactions.WAIT
-    )
+    // await this.reactionManager.createReaction(
+    //   comment.id,
+    //   this.reactionManager.reactions.WAIT
+    // )
 
     try {
       await this.waitForApproval(comment.id, this.config.pollInterval)
-      await this.reactionManager.setReaction(
+      await this.reactionManager.createReaction(
         comment.id,
         this.reactionManager.reactions.SUCCESS
       )
     } catch (error) {
-      await this.reactionManager.setReaction(
+      await this.reactionManager.createReaction(
         comment.id,
         this.reactionManager.reactions.FAILED
       )
