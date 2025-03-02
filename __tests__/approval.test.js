@@ -83,7 +83,6 @@ describe('ApprovalProcess', () => {
       )
       expect(mockReactionManager.setReaction).toHaveBeenCalledWith(
         'test-comment-id',
-        'test-user-id',
         mockReactionManager.reactions.WAIT
       )
       // expect(mockGitHubClient.deleteStaleIssueComments).toHaveBeenCalledWith(
@@ -96,7 +95,6 @@ describe('ApprovalProcess', () => {
 
       expect(mockReactionManager.setReaction).toHaveBeenCalledWith(
         'test-comment-id',
-        'test-user-id',
         mockReactionManager.reactions.SUCCESS
       )
     })
@@ -110,7 +108,6 @@ describe('ApprovalProcess', () => {
 
       expect(mockReactionManager.setReaction).toHaveBeenCalledWith(
         'test-comment-id',
-        'test-user-id',
         mockReactionManager.reactions.FAILED
       )
     })
@@ -122,10 +119,7 @@ describe('ApprovalProcess', () => {
         { content: '+1', user: { login: 'approver' } }
       ])
 
-      const waitPromise = approvalProcess.waitForApproval(
-        'test-comment-id',
-        'test-user-id'
-      )
+      const waitPromise = approvalProcess.waitForApproval('test-comment-id')
       await waitPromise
 
       expect(core.saveState).toHaveBeenCalledWith('approved-by', 'approver')
@@ -158,7 +152,6 @@ describe('ApprovalProcess', () => {
 
       const waitPromise = approvalProcess.waitForApproval(
         'test-comment-id',
-        'test-user-id',
         0.1,
         1
       ) // 1s timeout

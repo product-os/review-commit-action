@@ -16,14 +16,12 @@ class PostProcess {
       if (commentId && wasApproved) {
         await this.reactionManager.setReaction(
           commentId,
-          tokenUser.id,
           this.reactionManager.reactions.SUCCESS
         )
         return
       }
       await this.reactionManager.setReaction(
         commentId,
-        tokenUser.id,
         this.reactionManager.reactions.FAILED
       )
     } catch (error) {

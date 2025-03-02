@@ -40,22 +40,14 @@ class ReactionManager {
     return filtered
   }
 
-  async removeReactionsByUser(commentId, userId) {
-    const actorReactions = await this.getReactionsByUser(commentId, userId)
-    for (const reaction of actorReactions) {
-      this.deleteReaction(commentId, reaction.id)
-    }
-  }
-
-  // Set a single reaction on a comment, removing other reactions by this actor
-  async setReaction(commentId, userId, content) {
+  // Create a reaction on a comment
+  async setReaction(commentId, content) {
     if (core.getState('reaction') === content) {
       core.debug(
         `Skipping setting reaction :${content}: (reaction is already set)`
       )
       return
     }
-    await this.removeReactionsByUser(commentId, userId)
     await this.createReaction(commentId, content)
     core.saveState('reaction', content)
   }

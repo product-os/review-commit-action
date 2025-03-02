@@ -29,25 +29,18 @@ class ApprovalProcess {
 
     await this.reactionManager.setReaction(
       comment.id,
-      tokenUser.id,
       this.reactionManager.reactions.WAIT
     )
 
     try {
-      await this.waitForApproval(
-        comment.id,
-        tokenUser.id,
-        this.config.pollInterval
-      )
+      await this.waitForApproval(comment.id, this.config.pollInterval)
       await this.reactionManager.setReaction(
         comment.id,
-        tokenUser.id,
         this.reactionManager.reactions.SUCCESS
       )
     } catch (error) {
       await this.reactionManager.setReaction(
         comment.id,
-        tokenUser.id,
         this.reactionManager.reactions.FAILED
       )
       throw error
@@ -55,7 +48,7 @@ class ApprovalProcess {
   }
 
   // Wait for approval by checking reactions on a comment
-  async waitForApproval(commentId, tokenUserId, interval = 30) {
+  async waitForApproval(commentId, interval = 30) {
     core.info(`Checking for reactions at ${interval}-second intervals...`)
     for (;;) {
       const reactions = await this.reactionManager.getEligibleReactions(

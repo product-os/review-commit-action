@@ -46,7 +46,6 @@ describe('PostProcess', () => {
       expect(mockGitHubClient.getAuthenticatedUser).toHaveBeenCalled()
       expect(mockReactionManager.setReaction).toHaveBeenCalledWith(
         'test-comment-id',
-        'test-user-id',
         mockReactionManager.reactions.SUCCESS
       )
     })
@@ -65,7 +64,6 @@ describe('PostProcess', () => {
       expect(mockGitHubClient.getAuthenticatedUser).toHaveBeenCalled()
       expect(mockReactionManager.setReaction).toHaveBeenCalledWith(
         'test-comment-id',
-        'test-user-id',
         mockReactionManager.reactions.FAILED
       )
     })

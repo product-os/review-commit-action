@@ -29940,25 +29940,18 @@ class ApprovalProcess {
 
     await this.reactionManager.setReaction(
       comment.id,
-      tokenUser.id,
       this.reactionManager.reactions.WAIT
     )
 
     try {
-      await this.waitForApproval(
-        comment.id,
-        tokenUser.id,
-        this.config.pollInterval
-      )
+      await this.waitForApproval(comment.id, this.config.pollInterval)
       await this.reactionManager.setReaction(
         comment.id,
-        tokenUser.id,
         this.reactionManager.reactions.SUCCESS
       )
     } catch (error) {
       await this.reactionManager.setReaction(
         comment.id,
-        tokenUser.id,
         this.reactionManager.reactions.FAILED
       )
       throw error
@@ -29966,7 +29959,7 @@ class ApprovalProcess {
   }
 
   // Wait for approval by checking reactions on a comment
-  async waitForApproval(commentId, tokenUserId, interval = 30) {
+  async waitForApproval(commentId, interval = 30) {
     core.info(`Checking for reactions at ${interval}-second intervals...`)
     for (;;) {
       const reactions = await this.reactionManager.getEligibleReactions(
@@ -30256,14 +30249,12 @@ class PostProcess {
       if (commentId && wasApproved) {
         await this.reactionManager.setReaction(
           commentId,
-          tokenUser.id,
           this.reactionManager.reactions.SUCCESS
         )
         return
       }
       await this.reactionManager.setReaction(
         commentId,
-        tokenUser.id,
         this.reactionManager.reactions.FAILED
       )
     } catch (error) {
@@ -30322,22 +30313,14 @@ class ReactionManager {
     return filtered
   }
 
-  async removeReactionsByUser(commentId, userId) {
-    const actorReactions = await this.getReactionsByUser(commentId, userId)
-    for (const reaction of actorReactions) {
-      this.deleteReaction(commentId, reaction.id)
-    }
-  }
-
-  // Set a single reaction on a comment, removing other reactions by this actor
-  async setReaction(commentId, userId, content) {
+  // Create a reaction on a comment
+  async setReaction(commentId, content) {
     if (core.getState('reaction') === content) {
       core.debug(
         `Skipping setting reaction :${content}: (reaction is already set)`
       )
       return
     }
-    await this.removeReactionsByUser(commentId, userId)
     await this.createReaction(commentId, content)
     core.saveState('reaction', content)
   }

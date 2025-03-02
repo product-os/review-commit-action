@@ -87,32 +87,7 @@ describe('ReactionManager', () => {
     )
   })
 
-  test('removeReactionsByUser removes reactions for a specific user', async () => {
-    const mockReactions = [
-      { id: 1, content: '+1', user: { id: 101 } },
-      { id: 2, content: '-1', user: { id: 102 } },
-      { id: 3, content: '+1', user: { id: 101 } }
-    ]
-    mockGitHubClient.getReactionsForIssueComment.mockResolvedValue(
-      mockReactions
-    )
-
-    await reactionManager.removeReactionsByUser(123, 101)
-
-    expect(
-      mockGitHubClient.deleteReactionForIssueComment
-    ).toHaveBeenCalledTimes(2)
-    expect(mockGitHubClient.deleteReactionForIssueComment).toHaveBeenCalledWith(
-      123,
-      1
-    )
-    expect(mockGitHubClient.deleteReactionForIssueComment).toHaveBeenCalledWith(
-      123,
-      3
-    )
-  })
-
-  test('setReaction removes existing reactions and creates a new one', async () => {
+  test('setReaction creates a reaction successfully', async () => {
     const mockReactions = [
       { id: 1, content: '+1', user: { id: 101 } },
       { id: 2, content: '-1', user: { id: 101 } }
@@ -125,22 +100,8 @@ describe('ReactionManager', () => {
       content: 'eyes'
     })
 
-    await reactionManager.setReaction(123, 101, 'eyes')
+    await reactionManager.setReaction(123, 'eyes')
 
-    expect(mockGitHubClient.getReactionsForIssueComment).toHaveBeenCalledWith(
-      123
-    )
-    expect(
-      mockGitHubClient.deleteReactionForIssueComment
-    ).toHaveBeenCalledTimes(2)
-    expect(mockGitHubClient.deleteReactionForIssueComment).toHaveBeenCalledWith(
-      123,
-      1
-    )
-    expect(mockGitHubClient.deleteReactionForIssueComment).toHaveBeenCalledWith(
-      123,
-      2
-    )
     expect(mockGitHubClient.createReactionForIssueComment).toHaveBeenCalledWith(
       123,
       'eyes'
@@ -156,7 +117,7 @@ describe('ReactionManager', () => {
       return states[key]
     })
 
-    await reactionManager.setReaction(123, 101, 'eyes')
+    await reactionManager.setReaction(123, 'eyes')
 
     expect(core.getState).toHaveBeenCalledWith('reaction')
     expect(mockGitHubClient.getReactionsForIssueComment).not.toHaveBeenCalled()
