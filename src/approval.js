@@ -10,9 +10,6 @@ class ApprovalProcess {
   async run() {
     const tokenUser = await this.gitHubClient.getAuthenticatedUser()
 
-    // FIXME: remove this once we manually test reviewer permissions with PRs from forks
-    this.gitHubClient.throwOnContextMismatch()
-
     const runUrl = await this.gitHubClient.getWorkflowRunUrl()
 
     const commentBody = [
@@ -30,27 +27,20 @@ class ApprovalProcess {
     core.saveState('comment-id', comment.id)
     core.setOutput('comment-id', comment.id)
 
-    await this.reactionManager.setReaction(
-      comment.id,
-      tokenUser.id,
-      this.reactionManager.reactions.WAIT
-    )
+    // await this.reactionManager.createReaction(
+    //   comment.id,
+    //   this.reactionManager.reactions.WAIT
+    // )
 
     try {
-      await this.waitForApproval(
+      await this.waitForApproval(comment.id, this.config.pollInterval)
+      await this.reactionManager.createReaction(
         comment.id,
-        tokenUser.id,
-        this.config.pollInterval
-      )
-      await this.reactionManager.setReaction(
-        comment.id,
-        tokenUser.id,
         this.reactionManager.reactions.SUCCESS
       )
     } catch (error) {
-      await this.reactionManager.setReaction(
+      await this.reactionManager.createReaction(
         comment.id,
-        tokenUser.id,
         this.reactionManager.reactions.FAILED
       )
       throw error
@@ -58,12 +48,11 @@ class ApprovalProcess {
   }
 
   // Wait for approval by checking reactions on a comment
-  async waitForApproval(commentId, tokenUserId, interval = 30) {
+  async waitForApproval(commentId, interval = 30) {
     core.info(`Checking for reactions at ${interval}-second intervals...`)
     for (;;) {
       const reactions = await this.reactionManager.getEligibleReactions(
         commentId,
-        tokenUserId,
         this.config.reviewerPermissions,
         this.config.authorsCanReview
       )

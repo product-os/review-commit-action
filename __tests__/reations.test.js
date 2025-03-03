@@ -66,109 +66,6 @@ describe('ReactionManager', () => {
     )
   })
 
-  test('getReactionsByUser filters reactions by user', async () => {
-    const mockReactions = [
-      { id: 1, content: '+1', user: { id: 101 } },
-      { id: 2, content: '-1', user: { id: 102 } },
-      { id: 3, content: '+1', user: { id: 101 } }
-    ]
-    mockGitHubClient.getReactionsForIssueComment.mockResolvedValue(
-      mockReactions
-    )
-
-    const userReactions = await reactionManager.getReactionsByUser(123, 101)
-    expect(userReactions).toEqual([
-      { id: 1, content: '+1', user: { id: 101 } },
-      { id: 3, content: '+1', user: { id: 101 } }
-    ])
-
-    expect(mockGitHubClient.getReactionsForIssueComment).toHaveBeenCalledWith(
-      123
-    )
-  })
-
-  test('removeReactionsByUser removes reactions for a specific user', async () => {
-    const mockReactions = [
-      { id: 1, content: '+1', user: { id: 101 } },
-      { id: 2, content: '-1', user: { id: 102 } },
-      { id: 3, content: '+1', user: { id: 101 } }
-    ]
-    mockGitHubClient.getReactionsForIssueComment.mockResolvedValue(
-      mockReactions
-    )
-
-    await reactionManager.removeReactionsByUser(123, 101)
-
-    expect(
-      mockGitHubClient.deleteReactionForIssueComment
-    ).toHaveBeenCalledTimes(2)
-    expect(mockGitHubClient.deleteReactionForIssueComment).toHaveBeenCalledWith(
-      123,
-      1
-    )
-    expect(mockGitHubClient.deleteReactionForIssueComment).toHaveBeenCalledWith(
-      123,
-      3
-    )
-  })
-
-  test('setReaction removes existing reactions and creates a new one', async () => {
-    const mockReactions = [
-      { id: 1, content: '+1', user: { id: 101 } },
-      { id: 2, content: '-1', user: { id: 101 } }
-    ]
-    mockGitHubClient.getReactionsForIssueComment.mockResolvedValue(
-      mockReactions
-    )
-    mockGitHubClient.createReactionForIssueComment.mockResolvedValue({
-      id: 3,
-      content: 'eyes'
-    })
-
-    await reactionManager.setReaction(123, 101, 'eyes')
-
-    expect(mockGitHubClient.getReactionsForIssueComment).toHaveBeenCalledWith(
-      123
-    )
-    expect(
-      mockGitHubClient.deleteReactionForIssueComment
-    ).toHaveBeenCalledTimes(2)
-    expect(mockGitHubClient.deleteReactionForIssueComment).toHaveBeenCalledWith(
-      123,
-      1
-    )
-    expect(mockGitHubClient.deleteReactionForIssueComment).toHaveBeenCalledWith(
-      123,
-      2
-    )
-    expect(mockGitHubClient.createReactionForIssueComment).toHaveBeenCalledWith(
-      123,
-      'eyes'
-    )
-    expect(core.saveState).toHaveBeenCalledWith('reaction', 'eyes')
-  })
-
-  test('setReaction skips setting reaction if it is already set', async () => {
-    core.getState.mockImplementation(key => {
-      const states = {
-        reaction: 'eyes'
-      }
-      return states[key]
-    })
-
-    await reactionManager.setReaction(123, 101, 'eyes')
-
-    expect(core.getState).toHaveBeenCalledWith('reaction')
-    expect(mockGitHubClient.getReactionsForIssueComment).not.toHaveBeenCalled()
-    expect(
-      mockGitHubClient.deleteReactionForIssueComment
-    ).not.toHaveBeenCalled()
-    expect(
-      mockGitHubClient.createReactionForIssueComment
-    ).not.toHaveBeenCalled()
-    expect(core.saveState).not.toHaveBeenCalled()
-  })
-
   test('getEligibleReactions filters reactions based on permissions and authors', async () => {
     const mockReactions = [
       { id: 1, content: '+1', user: { id: 101, login: 'user1' } },
@@ -193,12 +90,11 @@ describe('ReactionManager', () => {
 
     const eligibleReactions = await reactionManager.getEligibleReactions(
       123,
-      102,
       ['write', 'admin'],
       false
     )
 
-    expect(eligibleReactions).toEqual([mockReactions[3]])
+    expect(eligibleReactions).toEqual([mockReactions[1], mockReactions[3]])
 
     expect(core.debug).toHaveBeenCalledWith(
       expect.stringContaining(
@@ -206,9 +102,7 @@ describe('ReactionManager', () => {
       )
     )
     expect(core.debug).toHaveBeenCalledWith(
-      expect.stringContaining(
-        'Ignoring reaction :-1: by user2 (user is the token user)'
-      )
+      expect.stringContaining('Found reaction :-1: by user2')
     )
     expect(core.debug).toHaveBeenCalledWith(
       expect.stringContaining(

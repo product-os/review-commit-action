@@ -19,9 +19,6 @@ where you need manual approval before proceeding with certain actions.
 
 ### Additional details
 
-- The user associated with the token running the action is excluded from
-  eligible reviewers. It is advised to use the actions `GITHUB_TOKEN` secret or
-  App Installation tokens.
 - By default, authors of commits on the pull request are excluded from eligible
   reviewers, but this can be toggled via an input.
 - The comment requiring review is always associated with the current run of the
@@ -55,9 +52,8 @@ default. Read how to adjust the permissions of the automatic token
 
 ### Inputs
 
-- `github-token`: GitHub token for authentication. The user associated with this
-  token is not eligible to review. Uses the actions `GITHUB_TOKEN` secret if
-  unset.
+- `github-token`: GitHub token for authentication. Uses the actions
+  `GITHUB_TOKEN` secret if unset.
 - `poll-interval`: Interval in seconds between checks for reactions. Default is
   `10`.
 - `allow-authors`: Allow pull request commit authors to approve or reject the

@@ -29921,9 +29921,6 @@ class ApprovalProcess {
   async run() {
     const tokenUser = await this.gitHubClient.getAuthenticatedUser()
 
-    // FIXME: remove this once we manually test reviewer permissions with PRs from forks
-    this.gitHubClient.throwOnContextMismatch()
-
     const runUrl = await this.gitHubClient.getWorkflowRunUrl()
 
     const commentBody = [
@@ -29941,27 +29938,20 @@ class ApprovalProcess {
     core.saveState('comment-id', comment.id)
     core.setOutput('comment-id', comment.id)
 
-    await this.reactionManager.setReaction(
-      comment.id,
-      tokenUser.id,
-      this.reactionManager.reactions.WAIT
-    )
+    // await this.reactionManager.createReaction(
+    //   comment.id,
+    //   this.reactionManager.reactions.WAIT
+    // )
 
     try {
-      await this.waitForApproval(
+      await this.waitForApproval(comment.id, this.config.pollInterval)
+      await this.reactionManager.createReaction(
         comment.id,
-        tokenUser.id,
-        this.config.pollInterval
-      )
-      await this.reactionManager.setReaction(
-        comment.id,
-        tokenUser.id,
         this.reactionManager.reactions.SUCCESS
       )
     } catch (error) {
-      await this.reactionManager.setReaction(
+      await this.reactionManager.createReaction(
         comment.id,
-        tokenUser.id,
         this.reactionManager.reactions.FAILED
       )
       throw error
@@ -29969,12 +29959,11 @@ class ApprovalProcess {
   }
 
   // Wait for approval by checking reactions on a comment
-  async waitForApproval(commentId, tokenUserId, interval = 30) {
+  async waitForApproval(commentId, interval = 30) {
     core.info(`Checking for reactions at ${interval}-second intervals...`)
     for (;;) {
       const reactions = await this.reactionManager.getEligibleReactions(
         commentId,
-        tokenUserId,
         this.config.reviewerPermissions,
         this.config.authorsCanReview
       )
@@ -30051,22 +30040,6 @@ class GitHubClient {
         commits.flatMap(c => [c.author?.id, c.committer?.id]).filter(Boolean)
       )
     ]
-  }
-
-  // FIXME: remove this once we manually test reviewer permissions with PRs from forks
-  throwOnContextMismatch() {
-    const payloadBaseRepo = {
-      owner: this.context.payload.pull_request.base.repo.owner.login,
-      repo: this.context.payload.pull_request.base.repo.name
-    }
-
-    if (JSON.stringify(this.context.repo) !== JSON.stringify(payloadBaseRepo)) {
-      core.debug(JSON.stringify(this.context.repo, null, 2))
-      core.debug(JSON.stringify(payloadBaseRepo, null, 2))
-      throw new Error(
-        'Context repo does not match payload pull request base repo!'
-      )
-    }
   }
 
   // https://octokit.github.io/rest.js/v18/#pulls-list-commits
@@ -30160,7 +30133,7 @@ class GitHubClient {
         comment_id: commentId,
         content
       })
-    core.info(`Created new :${reaction.content}: reaction ID ${reaction.id}`)
+    core.info(`Created :${reaction.content}: reaction ID ${reaction.id}`)
     core.debug(`Reaction payload:\n${JSON.stringify(reaction, null, 2)}`)
     return reaction
   }
@@ -30268,22 +30241,18 @@ class PostProcess {
 
   async run() {
     try {
-      const reaction = core.getState('reaction')
       const commentId = core.getState('comment-id')
       const wasApproved = core.getState('approved-by') !== ''
-      const tokenUser = await this.gitHubClient.getAuthenticatedUser()
 
       if (commentId && wasApproved) {
-        await this.reactionManager.setReaction(
+        await this.reactionManager.createReaction(
           commentId,
-          tokenUser.id,
           this.reactionManager.reactions.SUCCESS
         )
         return
       }
-      await this.reactionManager.setReaction(
+      await this.reactionManager.createReaction(
         commentId,
-        tokenUser.id,
         this.reactionManager.reactions.FAILED
       )
     } catch (error) {
@@ -30314,10 +30283,13 @@ class ReactionManager {
     })
   }
 
+  // Create a reaction for a comment
+  // If the reaction already exists this will be no-op
   async createReaction(commentId, content) {
     return this.gitHubClient.createReactionForIssueComment(commentId, content)
   }
 
+  // Delete a reaction for a comment
   async deleteReaction(commentId, reactionId) {
     return this.gitHubClient.deleteReactionForIssueComment(
       commentId,
@@ -30325,50 +30297,13 @@ class ReactionManager {
     )
   }
 
+  // Get all reactions for a comment
   async getReactions(commentId) {
     return this.gitHubClient.getReactionsForIssueComment(commentId)
   }
 
-  async getReactionsByUser(commentId, userId) {
-    const reactions = await this.getReactions(commentId)
-    const filtered = []
-
-    for (const reaction of reactions) {
-      if (reaction.user.id === userId) {
-        filtered.push(reaction)
-      }
-    }
-
-    return filtered
-  }
-
-  async removeReactionsByUser(commentId, userId) {
-    const actorReactions = await this.getReactionsByUser(commentId, userId)
-    for (const reaction of actorReactions) {
-      this.deleteReaction(commentId, reaction.id)
-    }
-  }
-
-  // Set a single reaction on a comment, removing other reactions by this actor
-  async setReaction(commentId, userId, content) {
-    if (core.getState('reaction') === content) {
-      core.debug(
-        `Skipping setting reaction :${content}: (reaction is already set)`
-      )
-      return
-    }
-    await this.removeReactionsByUser(commentId, userId)
-    await this.createReaction(commentId, content)
-    core.saveState('reaction', content)
-  }
-
   // Eligible reactions are those by users with the required permissions
-  async getEligibleReactions(
-    commentId,
-    tokenUserId,
-    permissions,
-    authorsCanReview
-  ) {
+  async getEligibleReactions(commentId, permissions, authorsCanReview) {
     const reactions = await this.getReactions(commentId)
     const filtered = []
 
@@ -30380,14 +30315,6 @@ class ReactionManager {
       if (!authorsCanReview && authors.includes(reaction.user.id)) {
         core.debug(
           `Ignoring reaction :${reaction.content}: by ${reaction.user.login} (user is a commit author)`
-        )
-        continue
-      }
-
-      // Exclude reactions by the token user
-      if (reaction.user.id === tokenUserId) {
-        core.debug(
-          `Ignoring reaction :${reaction.content}: by ${reaction.user.login} (user is the token user)`
         )
         continue
       }
