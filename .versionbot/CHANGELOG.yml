@@ -1,4 +1,17 @@
 - commits:
+    - subject: Update super-linter/super-linter digest to 4e8a7c2
+      hash: 199e4e43ae3a9b2b06e2bbeaeb235e1801c93440
+      body: |
+        Update super-linter/super-linter
+      footer:
+        Change-type: patch
+        change-type: patch
+      author: balena-renovate[bot]
+      nested: []
+  version: 0.2.2
+  title: ""
+  date: 2025-03-03T21:05:41.729Z
+- commits:
     - subject: Update Node.js to v22
       hash: a44c9f5f2471f2d6df57ab17a9a5bc7e2be77f7c
       body: |
