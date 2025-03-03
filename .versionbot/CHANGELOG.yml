@@ -1,4 +1,17 @@
 - commits:
+    - subject: Update Node.js to v22
+      hash: a44c9f5f2471f2d6df57ab17a9a5bc7e2be77f7c
+      body: |
+        Update node from 20.18.3 to 22.14.0
+      footer:
+        Change-type: patch
+        change-type: patch
+      author: balena-renovate[bot]
+      nested: []
+  version: 0.2.1
+  title: ""
+  date: 2025-03-03T20:40:26.892Z
+- commits:
     - subject: Do not remove reactions by user ID
       hash: 162bacd905829fbb3cf324a7c052d5018eca0e80
       body: |
