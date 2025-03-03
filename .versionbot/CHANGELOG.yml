@@ -1,4 +1,40 @@
 - commits:
+    - subject: Do not remove reactions by user ID
+      hash: 162bacd905829fbb3cf324a7c052d5018eca0e80
+      body: |
+        This could result in removing reactions from
+        a user that provided a PAT to the action.
+
+        Instead, just allow posting multiple reactions
+        for UX.
+      footer:
+        Change-type: minor
+        change-type: minor
+        Signed-off-by: Kyle Harding <kyle@balena.io>
+        signed-off-by: Kyle Harding <kyle@balena.io>
+      author: Kyle Harding
+      nested: []
+    - subject: Allow the token identity to review
+      hash: a7fbe304fd84c4d08a7ea9fdc698cd26a3e6e3ab
+      body: |
+        This is to support cases where users want or need
+        to use this action with a PAT or fine-grained token
+        that is associated with a user account.
+
+        Preventing the token identity from reviewing
+        commits means the PAT owner cannot review, which
+        is a fairly common use case outside of organizations.
+      footer:
+        Change-type: minor
+        change-type: minor
+        Signed-off-by: Kyle Harding <kyle@balena.io>
+        signed-off-by: Kyle Harding <kyle@balena.io>
+      author: Kyle Harding
+      nested: []
+  version: 0.2.0
+  title: ""
+  date: 2025-03-03T14:39:21.082Z
+- commits:
     - subject: Update Node.js to v20.18.3
       hash: d9fb8706699e39c0549dcc3ff7053e156d8c7808
       body: |

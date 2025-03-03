@@ -1,7 +1,7 @@
 {
   "name": "approved-commit-action",
   "description": "Wait for approval from a repository maintainer on a commit comment",
-  "version": "0.1.12",
+  "version": "0.2.0",
   "author": "",
   "private": true,
   "homepage": "https://github.com/product-os/review-commit-action#readme",
@@ -84,6 +84,6 @@
     "prettier": "^3.3.3"
   },
   "versionist": {
-    "publishedAt": "2025-02-25T23:03:54.588Z"
+    "publishedAt": "2025-03-03T14:39:21.162Z"
   }
 }
