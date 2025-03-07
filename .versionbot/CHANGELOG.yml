@@ -1,4 +1,17 @@
 - commits:
+    - subject: Update github/codeql-action digest to 6bb031a
+      hash: 5c8272e5a7be3df528d315dfb3a9604b470fbeff
+      body: |
+        Update github/codeql-action
+      footer:
+        Change-type: patch
+        change-type: patch
+      author: balena-renovate[bot]
+      nested: []
+  version: 0.2.3
+  title: ""
+  date: 2025-03-07T17:08:19.384Z
+- commits:
     - subject: Update super-linter/super-linter digest to 4e8a7c2
       hash: 199e4e43ae3a9b2b06e2bbeaeb235e1801c93440
       body: |
