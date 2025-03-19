@@ -1,4 +1,17 @@
 - commits:
+    - subject: Update github/codeql-action digest to 5f8171a
+      hash: 20a33cd69d1631c476078ddf63ca64ff5c70d6d0
+      body: |
+        Update github/codeql-action
+      footer:
+        Change-type: patch
+        change-type: patch
+      author: balena-renovate[bot]
+      nested: []
+  version: 0.2.5
+  title: ""
+  date: 2025-03-19T13:17:52.176Z
+- commits:
     - subject: Update actions/setup-node digest to cdca736
       hash: cd8e37c2157473cac1a07fd56bc8adce36f9c755
       body: |
