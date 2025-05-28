@@ -29912,85 +29912,84 @@ function wrappy (fn, cb) {
 const core = __nccwpck_require__(7484)
 
 class ApprovalProcess {
-  constructor(gitHubClient, reactionManager, config) {
+  constructor(gitHubClient, config) {
     this.gitHubClient = gitHubClient
-    this.reactionManager = reactionManager
     this.config = config
   }
 
   async run() {
-    const tokenUser = await this.gitHubClient.getAuthenticatedUser()
+    const commitSha = this.gitHubClient.getCurrentCommitSha()
+    core.info(`Checking for approval reviews on commit: ${commitSha}`)
 
+    // Create instructional comment (only if one doesn't already exist)
     const runUrl = await this.gitHubClient.getWorkflowRunUrl()
-
     const commentBody = [
-      ...this.config.commentHeaders,
-      `${runUrl}`,
-      ...this.config.commentFooters
+      'A repository maintainer needs to approve these workflow run(s).',
+      '',
+      'To approve, maintainers can either:',
+      '• **Submit an approval review** on this pull request, OR',
+      '• **Submit a review comment** starting with `/deploy`',
+      'Then re-run the failed job(s) via the Checks tab above.',
+      '',
+      'Reviews must be on the specific commit SHA of the workflow run to be considered.'
     ].join('\n\n')
 
-    // await this.gitHubClient.deleteStaleIssueComments(
-    //   this.config.commentHeader
-    // )
-
-    const comment = await this.gitHubClient.createIssueComment(commentBody)
-
-    core.saveState('comment-id', comment.id)
-    core.setOutput('comment-id', comment.id)
-
-    // await this.reactionManager.createReaction(
-    //   comment.id,
-    //   this.reactionManager.reactions.WAIT
-    // )
+    // Use a unique pattern to identify our instructional comments
+    const uniquePattern =
+      'A repository maintainer needs to approve these workflow run(s).'
+    await this.gitHubClient.createIssueCommentIfNotExists(
+      commentBody,
+      uniquePattern
+    )
 
     try {
-      await this.waitForApproval(comment.id, this.config.pollInterval)
-      await this.reactionManager.createReaction(
-        comment.id,
-        this.reactionManager.reactions.SUCCESS
-      )
-    } catch (error) {
-      await this.reactionManager.createReaction(
-        comment.id,
-        this.reactionManager.reactions.FAILED
-      )
-      throw error
-    }
-  }
-
-  // Wait for approval by checking reactions on a comment
-  async waitForApproval(commentId, interval = 30) {
-    core.info(`Checking for reactions at ${interval}-second intervals...`)
-    for (;;) {
-      const reactions = await this.reactionManager.getEligibleReactions(
-        commentId,
+      const approvalResult = await this.checkForApproval(
+        commitSha,
         this.config.reviewerPermissions,
         this.config.authorsCanReview
       )
 
-      const rejectedBy = reactions.find(
-        r => r.content === this.reactionManager.reactions.REJECT
-      )?.user.login
-
-      if (rejectedBy) {
-        core.debug(`Workflow rejected by ${rejectedBy}`)
-        core.saveState('rejected-by', rejectedBy)
-        core.setOutput('rejected-by', rejectedBy)
-        throw new Error(`Workflow rejected by ${rejectedBy}`)
-      }
-
-      const approvedBy = reactions.find(
-        r => r.content === this.reactionManager.reactions.APPROVE
-      )?.user.login
-
-      if (approvedBy) {
-        core.saveState('approved-by', approvedBy)
-        core.setOutput('approved-by', approvedBy)
-        core.info(`Workflow approved by ${approvedBy}`)
+      if (approvalResult) {
+        core.info(
+          `Workflow approved by ${approvalResult.approvedBy} via ${approvalResult.reviewType} review`
+        )
+        core.setOutput('approved-by', approvalResult.approvedBy)
+        core.setOutput('review-id', approvalResult.reviewId)
+        core.setOutput('review-type', approvalResult.reviewType)
         return
+      } else {
+        throw new Error(
+          `No eligible approval found for commit ${commitSha}. ` +
+            `Reviews must be either APPROVED state or contain '/deploy' command ` +
+            `and be from users with write/admin permissions.`
+        )
       }
+    } catch (error) {
+      core.setFailed(error.message)
+      throw error
+    }
+  }
 
-      await new Promise(resolve => setTimeout(resolve, interval * 1000))
+  // Check for approval reviews on the specified commit
+  async checkForApproval(commitSha, requiredPermissions, allowAuthors) {
+    const eligibleReviews = await this.gitHubClient.getEligibleReviewsForCommit(
+      commitSha,
+      requiredPermissions,
+      allowAuthors
+    )
+
+    if (eligibleReviews.length === 0) {
+      core.info('No eligible approval reviews found')
+      return null
+    }
+
+    // Return the first eligible review (most recent reviews are typically first)
+    const approvalReview = eligibleReviews[0]
+
+    return {
+      approvedBy: approvalReview.user.login,
+      reviewId: approvalReview.id,
+      reviewType: approvalReview.reviewType
     }
   }
 }
@@ -30092,36 +30091,38 @@ class GitHubClient {
     return comments
   }
 
-  // Delete all PR comments that start with the provided string
-  async deleteStaleIssueComments(startsWith) {
+  // Check if a comment with similar content already exists from the authenticated user
+  async findExistingComment(contentPattern) {
     const comments = await this.listIssueComments()
     const userId = (await this.getAuthenticatedUser()).id
-    const filteredComments = comments.filter(
-      c =>
-        c.body.startsWith(startsWith) &&
-        c.user.id === userId &&
-        c.created_at === c.updated_at
+
+    // Find comments from the authenticated user that match the pattern
+    const existingComment = comments.find(
+      comment =>
+        comment.user.id === userId && comment.body.includes(contentPattern)
     )
 
-    for (const comment of filteredComments) {
-      await this.octokit.rest.issues.deleteComment({
-        ...this.context.repo,
-        comment_id: comment.id
-      })
+    if (existingComment) {
+      core.info(`Found existing comment with ID: ${existingComment.id}`)
+      return existingComment
     }
-    core.info(`Deleted ${filteredComments.length} stale comments.`)
+
+    core.debug('No existing comment found matching the pattern')
+    return null
   }
 
-  // https://octokit.github.io/rest.js/v21/#repos-get-collaborator-permission-level
-  // https://docs.github.com/en/rest/collaborators/collaborators#get-repository-permissions-for-a-user
-  async getUserPermission(username) {
-    const { data: permissionData } =
-      await this.octokit.rest.repos.getCollaboratorPermissionLevel({
-        ...this.context.repo,
-        username
-      })
-    core.debug(`User ${username} has permission: ${permissionData.permission}`)
-    return permissionData.permission
+  // Create a new PR comment with the provided body, but only if a similar one doesn't exist
+  async createIssueCommentIfNotExists(body, uniquePattern) {
+    // Check if a comment with this pattern already exists
+    const existingComment = await this.findExistingComment(uniquePattern)
+
+    if (existingComment) {
+      core.info('Skipping comment creation - similar comment already exists')
+      return existingComment
+    }
+
+    // Create new comment if none exists
+    return await this.createIssueComment(body)
   }
 
   // https://octokit.github.io/rest.js/v18/#reactions-create-for-issue-comment
@@ -30161,6 +30162,113 @@ class GitHubClient {
     })
     core.info(`Deleted reaction ID ${reactionId}`)
   }
+
+  // Get the current commit SHA from the workflow context
+  getCurrentCommitSha() {
+    // In pull request events, we want the head SHA (the commit being tested)
+    if (this.context.payload.pull_request) {
+      return this.context.payload.pull_request.head.sha
+    }
+    // Fallback to the context SHA
+    return this.context.sha
+  }
+
+  // https://octokit.github.io/rest.js/v18/#pulls-list-reviews
+  // https://docs.github.com/en/rest/pulls/reviews#list-reviews-on-a-pull-request
+  async getPullRequestReviews() {
+    const { data: reviews } = await this.octokit.rest.pulls.listReviews({
+      ...this.context.repo,
+      pull_number: this.context.payload.pull_request.number
+    })
+    core.debug(`Found ${reviews.length} reviews`)
+    core.debug(`Reviews payload:\n${JSON.stringify(reviews, null, 2)}`)
+    return reviews
+  }
+
+  // Get reviews for a specific commit SHA
+  async getReviewsForCommit(commitSha) {
+    const allReviews = await this.getPullRequestReviews()
+
+    // Filter reviews that are associated with the specific commit
+    const commitReviews = allReviews.filter(
+      review => review.commit_id === commitSha
+    )
+
+    core.debug(`Found ${commitReviews.length} reviews for commit ${commitSha}`)
+    return commitReviews
+  }
+
+  // Check if a review is an approval review
+  isApprovalReview(review) {
+    return review.state === 'APPROVED'
+  }
+
+  // Check if a review comment contains the deploy command
+  isDeployCommandReview(review) {
+    if (!review.body) return false
+
+    // Check if the review body starts with /deploy (case insensitive)
+    const trimmedBody = review.body.trim().toLowerCase()
+    return trimmedBody.startsWith('/deploy')
+  }
+
+  // Get eligible reviews for approval (either APPROVED state or deploy command)
+  async getEligibleReviewsForCommit(
+    commitSha,
+    requiredPermissions = ['write', 'admin'],
+    allowAuthors = false
+  ) {
+    const reviews = await this.getReviewsForCommit(commitSha)
+    const eligibleReviews = []
+
+    // Get PR authors if we need to exclude them
+    let authorIds = []
+    if (!allowAuthors) {
+      authorIds = await this.getPullRequestAuthors()
+    }
+
+    for (const review of reviews) {
+      // Skip if author is not allowed and this is from an author
+      if (!allowAuthors && authorIds.includes(review.user.id)) {
+        core.debug(`Skipping review from PR author: ${review.user.login}`)
+        continue
+      }
+
+      // Check user permissions
+      const userPermission = await this.getUserPermission(review.user.login)
+      if (!requiredPermissions.includes(userPermission)) {
+        core.debug(
+          `User ${review.user.login} has insufficient permissions: ${userPermission}`
+        )
+        continue
+      }
+
+      // Check if this is an eligible review (approval or deploy command)
+      if (this.isApprovalReview(review) || this.isDeployCommandReview(review)) {
+        eligibleReviews.push({
+          ...review,
+          reviewType: this.isApprovalReview(review) ? 'approval' : 'comment'
+        })
+      }
+    }
+
+    core.debug(
+      `Found ${eligibleReviews.length} eligible reviews for commit ${commitSha}`
+    )
+    return eligibleReviews
+  }
+
+  // https://octokit.github.io/rest.js/v21/#repos-get-collaborator-permission-level
+  // https://docs.github.com/en/rest/collaborators/collaborators#get-repository-permissions-for-a-user
+  async getUserPermission(username) {
+    const { data: permissionData } =
+      await this.octokit.rest.repos.getCollaboratorPermissionLevel({
+        ...this.context.repo,
+        username
+      })
+    core.debug(`User ${username} has permission: ${permissionData.permission}`)
+    return permissionData.permission
+  }
 }
 
 module.exports = { GitHubClient }
@@ -30176,8 +30284,8 @@ module.exports = { GitHubClient }
  */
 const core = __nccwpck_require__(7484)
 const github = __nccwpck_require__(3228)
+
 const { GitHubClient } = __nccwpck_require__(5706)
-const { ReactionManager } = __nccwpck_require__(2141)
 const { ApprovalProcess } = __nccwpck_require__(9682)
 const { PostProcess } = __nccwpck_require__(6043)
 
@@ -30185,36 +30293,23 @@ async function run() {
   try {
     const config = {
       token: core.getInput('github-token'),
-      pollInterval: parseInt(core.getInput('poll-interval')) || 10,
       authorsCanReview: core.getBooleanInput('allow-authors'),
-      reviewerPermissions: ['write', 'admin'],
-      commentHeaders: [
-        'A repository maintainer needs to approve this workflow run.'
-      ],
-      commentFooters: [
-        'Maintainers, please review all commits and react with :+1: to approve or :-1: to reject.',
-        'Things to look for: [GitHub Actions Security Cheat Sheet](https://0xn3va.gitbook.io/cheat-sheets/ci-cd/github/actions)'
-      ]
+      reviewerPermissions: ['write', 'admin']
     }
 
     const octokit = github.getOctokit(config.token)
     const gitHubClient = new GitHubClient(octokit, github.context)
-    const reactionManager = new ReactionManager(gitHubClient)
 
     // Check if this is a post-execution run
     // eslint-disable-next-line no-extra-boolean-cast
     if (!!core.getState('isPost')) {
-      const postProcess = new PostProcess(gitHubClient, reactionManager)
+      const postProcess = new PostProcess(gitHubClient)
       await postProcess.run()
       return
     }
 
     core.saveState('isPost', 'true')
-    const approvalProcess = new ApprovalProcess(
-      gitHubClient,
-      reactionManager,
-      config
-    )
+    const approvalProcess = new ApprovalProcess(gitHubClient, config)
     await approvalProcess.run()
   } catch (error) {
     core.setFailed(error.message)
@@ -30234,113 +30329,19 @@ module.exports = { run }
 const core = __nccwpck_require__(7484)
 
 class PostProcess {
-  constructor(gitHubClient, reactionManager) {
+  constructor(gitHubClient) {
     this.gitHubClient = gitHubClient
-    this.reactionManager = reactionManager
   }
 
   async run() {
-    try {
-      const commentId = core.getState('comment-id')
-      const wasApproved = core.getState('approved-by') !== ''
-
-      if (commentId && wasApproved) {
-        await this.reactionManager.createReaction(
-          commentId,
-          this.reactionManager.reactions.SUCCESS
-        )
-        return
-      }
-      await this.reactionManager.createReaction(
-        commentId,
-        this.reactionManager.reactions.FAILED
-      )
-    } catch (error) {
-      core.warning(`Cleanup failed: ${error.message}`)
-    }
+    // No cleanup needed for review-based approval
+    core.info(
+      'Post-process completed - no cleanup required for review-based approval'
+    )
   }
 }
 
 module.exports = { PostProcess }
-
-
-/***/ }),
-
-/***/ 2141:
-/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
-
-const core = __nccwpck_require__(7484)
-
-class ReactionManager {
-  constructor(gitHubClient) {
-    this.gitHubClient = gitHubClient
-    this.reactions = Object.freeze({
-      APPROVE: '+1',
-      REJECT: '-1',
-      WAIT: 'eyes',
-      SUCCESS: 'rocket',
-      FAILED: 'confused'
-    })
-  }
-
-  // Create a reaction for a comment
-  // If the reaction already exists this will be no-op
-  async createReaction(commentId, content) {
-    return this.gitHubClient.createReactionForIssueComment(commentId, content)
-  }
-
-  // Delete a reaction for a comment
-  async deleteReaction(commentId, reactionId) {
-    return this.gitHubClient.deleteReactionForIssueComment(
-      commentId,
-      reactionId
-    )
-  }
-
-  // Get all reactions for a comment
-  async getReactions(commentId) {
-    return this.gitHubClient.getReactionsForIssueComment(commentId)
-  }
-
-  // Eligible reactions are those by users with the required permissions
-  async getEligibleReactions(commentId, permissions, authorsCanReview) {
-    const reactions = await this.getReactions(commentId)
-    const filtered = []
-
-    // Get all commit authors
-    const authors = await this.gitHubClient.getPullRequestAuthors()
-
-    for (const reaction of reactions) {
-      // Exclude reactions by commit authors
-      if (!authorsCanReview && authors.includes(reaction.user.id)) {
-        core.debug(
-          `Ignoring reaction :${reaction.content}: by ${reaction.user.login} (user is a commit author)`
-        )
-        continue
-      }
-
-      // Exclude reactions by users without the required permissions
-      const permission = await this.gitHubClient.getUserPermission(
-        reaction.user.login
-      )
-      if (!permissions.includes(permission)) {
-        core.debug(
-          `Ignoring reaction :${reaction.content}: by ${reaction.user.login} (user lacks required permissions)`
-        )
-        continue
-      }
-
-      core.debug(
-        `Found reaction :${reaction.content}: by ${reaction.user.login}`
-      )
-      filtered.push(reaction)
-    }
-
-    return filtered
-  }
-}
-
-module.exports = { ReactionManager }
 
 
 /***/ }),

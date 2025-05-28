@@ -1,0 +1,25 @@
+---
+description: 
+globs: **/__tests__/**,**/*.test.js,**/*.spec.js
+alwaysApply: false
+---
+# Testing Guidelines
+
+## Jest Testing Conventions
+- Follow Jest testing conventions
+- Use descriptive test names that explain what is being tested
+- Group related tests using `describe` blocks
+- Use `beforeEach` for test setup
+- Mock external dependencies appropriately
+
+## Test Structure
+- Arrange, Act, Assert pattern
+- One assertion per test when possible
+- Clear test descriptions that read like specifications
+- Use meaningful variable names in tests
+
+## Mocking Best Practices
+- Mock external dependencies at the module level
+- Clear all mocks in `beforeEach` or `afterEach`
+- Use `jest.fn()` for function mocks
+- Mock only what you need to test the specific behavior

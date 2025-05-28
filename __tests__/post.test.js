@@ -6,76 +6,29 @@ jest.mock('@actions/core')
 describe('PostProcess', () => {
   let postProcess
   let mockGitHubClient
-  let mockReactionManager
 
   beforeEach(() => {
     jest.clearAllMocks()
 
-    mockGitHubClient = {
-      getAuthenticatedUser: jest.fn()
-    }
+    mockGitHubClient = {}
 
-    mockReactionManager = {
-      createReaction: jest.fn(),
-      reactions: {
-        SUCCESS: 'rocket',
-        FAILED: 'confused'
-      }
-    }
-
-    postProcess = new PostProcess(mockGitHubClient, mockReactionManager)
+    postProcess = new PostProcess(mockGitHubClient)
   })
 
   describe('run', () => {
-    beforeEach(() => {
-      core.getState.mockImplementation(key => {
-        const states = {
-          'comment-id': 'test-comment-id',
-          'approved-by': 'test-approver'
-        }
-        return states[key]
-      })
-      mockGitHubClient.getAuthenticatedUser.mockResolvedValue({
-        id: 'test-user-id'
-      })
-    })
-
-    test('creates success reaction when approval is successful', async () => {
+    test('completes successfully and logs info message', async () => {
       await postProcess.run()
 
-      expect(mockReactionManager.createReaction).toHaveBeenCalledWith(
-        'test-comment-id',
-        mockReactionManager.reactions.SUCCESS
+      expect(core.info).toHaveBeenCalledWith(
+        'Post-process completed - no cleanup required for review-based approval'
       )
     })
 
-    test('creates failed reaction when approval is not successful', async () => {
-      core.getState.mockImplementation(key => {
-        const states = {
-          'comment-id': 'test-comment-id',
-          'approved-by': ''
-        }
-        return states[key]
-      })
-
+    test('does not access any state', async () => {
       await postProcess.run()
 
-      expect(mockReactionManager.createReaction).toHaveBeenCalledWith(
-        'test-comment-id',
-        mockReactionManager.reactions.FAILED
-      )
-    })
-
-    test('logs a warning when an error occurs', async () => {
-      mockReactionManager.createReaction.mockRejectedValue(
-        new Error('Create reaction failed')
-      )
-
-      await postProcess.run()
-
-      expect(core.warning).toHaveBeenCalledWith(
-        'Cleanup failed: Create reaction failed'
-      )
+      // Verify no state methods were called
+      expect(core.getState).not.toHaveBeenCalled()
     })
   })
 })

@@ -1,0 +1,36 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# Code Formatting Guidelines
+
+## Prettier Configuration
+- Always follow the prettier configuration defined in `.prettierrc.json`
+- Use 2 spaces for indentation
+- Use single quotes for strings
+- Add trailing commas where valid in ES5 (objects, arrays, etc.)
+- Line length should not exceed 80 characters
+- Use semicolons at the end of statements
+- Break long function calls and object literals across multiple lines
+- When breaking lines in function calls, put each argument on its own line with proper indentation
+
+## JavaScript/Node.js Best Practices
+- Use `const` and `let` instead of `var`
+- Prefer arrow functions for callbacks and short functions
+- Use template literals for string interpolation
+- Always use strict equality (`===` and `!==`)
+- Use async/await instead of Promise chains where possible
+
+## Code Style
+- Use meaningful variable and function names
+- Add JSDoc comments for public functions
+- Keep functions small and focused on a single responsibility
+- Use early returns to reduce nesting
+- Handle errors gracefully with appropriate error messages
+
+## File Organization
+- Keep related functionality together
+- Use clear module exports and imports
+- Separate concerns into different files/modules
+- Follow the existing project structure

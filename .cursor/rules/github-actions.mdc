@@ -1,0 +1,30 @@
+---
+description: 
+globs: src/**,action.yml,.github/**
+alwaysApply: false
+---
+# GitHub Actions Guidelines
+
+## Best Practices
+- Follow GitHub Actions best practices
+- Use semantic and descriptive action names
+- Properly handle errors and set appropriate exit codes
+- Use core.info, core.warning, and core.error for logging
+
+## Error Handling
+- Always use try-catch blocks for async operations
+- Set meaningful error messages with context
+- Use `core.setFailed()` to mark the action as failed
+- Log errors before throwing them
+
+## Input/Output Management
+- Validate all inputs at the start of the action
+- Use `core.getInput()` and `core.getBooleanInput()` appropriately
+- Set outputs using `core.setOutput()` with descriptive names
+- Document all inputs and outputs in action.yml
+
+## Security Considerations
+- Validate all user inputs
+- Use least privilege permissions
+- Avoid logging sensitive information
+- Follow TOCTOU attack prevention patterns
