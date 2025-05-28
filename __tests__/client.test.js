@@ -125,12 +125,34 @@ describe('GitHubClient', () => {
     })
   })
 
-  test('createIssueComment throws an error when comment creation fails', async () => {
+  test('createIssueComment returns null when comment creation fails', async () => {
     mockOctokit.rest.issues.createComment.mockResolvedValue({ data: null })
 
-    await expect(
-      gitHubClient.createIssueComment('Test PR comment body')
-    ).rejects.toThrow('Failed to create issue comment!')
+    const comment = await gitHubClient.createIssueComment(
+      'Test PR comment body'
+    )
+    expect(comment).toBeNull()
+  })
+
+  test('createIssueComment returns null on permission error', async () => {
+    const permissionError = new Error('Forbidden')
+    permissionError.status = 403
+    mockOctokit.rest.issues.createComment.mockRejectedValue(permissionError)
+
+    const comment = await gitHubClient.createIssueComment(
+      'Test PR comment body'
+    )
+    expect(comment).toBeNull()
+  })
+
+  test('createIssueComment returns null on other errors', async () => {
+    const genericError = new Error('Network error')
+    mockOctokit.rest.issues.createComment.mockRejectedValue(genericError)
+
+    const comment = await gitHubClient.createIssueComment(
+      'Test PR comment body'
+    )
+    expect(comment).toBeNull()
   })
 
   test('listIssueComments returns all PR comments', async () => {
@@ -240,6 +262,30 @@ describe('GitHubClient', () => {
     )
     expect(comment).toEqual(existingComment)
     expect(mockOctokit.rest.issues.createComment).not.toHaveBeenCalled()
+  })
+
+  test('createIssueCommentIfNotExists returns null when comment creation fails', async () => {
+    mockOctokit.rest.issues.listComments.mockResolvedValue({ data: [] })
+    mockOctokit.rest.issues.createComment.mockResolvedValue({ data: null })
+    gitHubClient.getAuthenticatedUser = jest
+      .fn()
+      .mockResolvedValue({ id: 'testUserId' })
+
+    const comment = await gitHubClient.createIssueCommentIfNotExists(
+      'Test comment body',
+      'Test comment'
+    )
+    expect(comment).toBeNull()
+  })
+
+  test('findExistingComment returns null when listing comments fails', async () => {
+    const permissionError = new Error('Forbidden')
+    permissionError.status = 403
+    mockOctokit.rest.issues.listComments.mockRejectedValue(permissionError)
+
+    const existingComment =
+      await gitHubClient.findExistingComment('Test pattern')
+    expect(existingComment).toBeNull()
   })
 
   test('getUserPermission returns the correct permission level', async () => {

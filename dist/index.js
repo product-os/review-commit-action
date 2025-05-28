@@ -29922,7 +29922,6 @@ class ApprovalProcess {
     core.info(`Checking for approval reviews on commit: ${commitSha}`)
 
     // Create instructional comment (only if one doesn't already exist)
-    const runUrl = await this.gitHubClient.getWorkflowRunUrl()
     const commentBody = [
       'A repository maintainer needs to approve these workflow run(s).',
       '',
@@ -30064,19 +30063,38 @@ class GitHubClient {
   // https://octokit.github.io/rest.js/v18/#issues-create-comment
   // https://docs.github.com/en/rest/issues/comments#create-an-issue-comment
   async createIssueComment(body) {
-    const { data: comment } = await this.octokit.rest.issues.createComment({
-      ...this.context.repo,
-      issue_number: this.context.payload.pull_request.number,
-      body
-    })
+    try {
+      const { data: comment } = await this.octokit.rest.issues.createComment({
+        ...this.context.repo,
+        issue_number: this.context.payload.pull_request.number,
+        body
+      })
 
-    if (!comment || !comment.id) {
-      throw new Error('Failed to create issue comment!')
+      if (!comment || !comment.id) {
+        core.warning(
+          'Failed to create issue comment - no comment data returned'
+        )
+        return null
+      }
+
+      core.info(`Created new issue comment: ${comment.url}`)
+      core.debug(`Comment payload:\n${JSON.stringify(comment, null, 2)}`)
+      return comment
+    } catch (error) {
+      // Log warning for permission errors instead of failing the action
+      if (error.status === 403) {
+        core.warning(
+          'Unable to create comment due to insufficient permissions. ' +
+            'The action will continue without posting an instructional comment.'
+        )
+      } else {
+        core.warning(
+          `Failed to create issue comment: ${error.message}. ` +
+            'The action will continue without posting an instructional comment.'
+        )
+      }
+      return null
     }
-
-    core.info(`Created new issue comment: ${comment.url}`)
-    core.debug(`Comment payload:\n${JSON.stringify(comment, null, 2)}`)
-    return comment
   }
 
   // https://octokit.github.io/rest.js/v18/#issues-list-comments
@@ -30093,22 +30111,30 @@ class GitHubClient {
 
   // Check if a comment with similar content already exists from the authenticated user
   async findExistingComment(contentPattern) {
-    const comments = await this.listIssueComments()
-    const userId = (await this.getAuthenticatedUser()).id
+    try {
+      const comments = await this.listIssueComments()
+      const userId = (await this.getAuthenticatedUser()).id
 
-    // Find comments from the authenticated user that match the pattern
-    const existingComment = comments.find(
-      comment =>
-        comment.user.id === userId && comment.body.includes(contentPattern)
-    )
+      // Find comments from the authenticated user that match the pattern
+      const existingComment = comments.find(
+        comment =>
+          comment.user.id === userId && comment.body.includes(contentPattern)
+      )
 
-    if (existingComment) {
-      core.info(`Found existing comment with ID: ${existingComment.id}`)
-      return existingComment
+      if (existingComment) {
+        core.info(`Found existing comment with ID: ${existingComment.id}`)
+        return existingComment
+      }
+
+      core.debug('No existing comment found matching the pattern')
+      return null
+    } catch (error) {
+      // If we can't list comments due to permissions, assume no existing comment
+      core.debug(
+        `Unable to check for existing comments: ${error.message}. Proceeding without check.`
+      )
+      return null
     }
-
-    core.debug('No existing comment found matching the pattern')
-    return null
   }
 
   // Create a new PR comment with the provided body, but only if a similar one doesn't exist
@@ -30122,7 +30148,11 @@ class GitHubClient {
     }
 
     // Create new comment if none exists
-    return await this.createIssueComment(body)
+    const newComment = await this.createIssueComment(body)
+    if (!newComment) {
+      core.debug('Comment creation failed, continuing without comment')
+    }
+    return newComment
   }
 
   // https://octokit.github.io/rest.js/v18/#reactions-create-for-issue-comment

@@ -11,7 +11,6 @@ class ApprovalProcess {
     core.info(`Checking for approval reviews on commit: ${commitSha}`)
 
     // Create instructional comment (only if one doesn't already exist)
-    const runUrl = await this.gitHubClient.getWorkflowRunUrl()
     const commentBody = [
       'A repository maintainer needs to approve these workflow run(s).',
       '',

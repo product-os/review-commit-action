@@ -15,6 +15,6 @@ runs:
       if: steps.commit-review.conclusion == 'success'
       shell: bash
       run: |
-        echo "Comment ID: ${{ steps.commit-review.outputs.comment-id }}"
+        echo "Review ID: ${{ steps.commit-review.outputs.review-id }}"
         echo "Approved by: ${{ steps.commit-review.outputs.approved-by }}"
-        echo "Rejected by: ${{ steps.commit-review.outputs.rejected-by }}"
+        echo "Review type: ${{ steps.commit-review.outputs.review-type }}"
