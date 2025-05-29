@@ -1,4 +1,36 @@
 - commits:
+    - subject: Warn only on failure to post instructional comment
+      hash: 40bbf2c5f18db9e2ec4b12bf83f5b1e3c414cf2b
+      body: |
+        If the action is running without pull_reqest:write permissions,
+        it should be able to continue without the instructional comment.
+      footer:
+        Change-type: patch
+        change-type: patch
+        Signed-off-by: Kyle Harding <kyle@balena.io>
+        signed-off-by: Kyle Harding <kyle@balena.io>
+      author: Kyle Harding
+      nested: []
+    - subject: Refactor to use pull request reviews for approval
+      hash: 2e7e280fa10418d2fd60f6c6d8a64a14467523b3
+      body: |
+        The downside of a comment per workflow, is multiple parallel
+        workflows will all require comment reactions and they get lost
+        in the pull request comment history very quickly.
+
+        This consolidates the approval to a single pull request review,
+        either a comment or approval, and fails the workflow without it.
+      footer:
+        Change-type: minor
+        change-type: minor
+        Signed-off-by: Kyle Harding <kyle@balena.io>
+        signed-off-by: Kyle Harding <kyle@balena.io>
+      author: Kyle Harding
+      nested: []
+  version: 0.3.0
+  title: ""
+  date: 2025-05-29T20:14:49.499Z
+- commits:
     - subject: Update github/codeql-action digest to 5f8171a
       hash: 20a33cd69d1631c476078ddf63ca64ff5c70d6d0
       body: |
