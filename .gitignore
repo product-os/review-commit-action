@@ -101,3 +101,7 @@ __tests__/runner/*
 .idea
 .vscode
 *.code-workspace
+
+# Cursor rules files
+.cursor/
+.cursorrules
