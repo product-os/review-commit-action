@@ -6,161 +6,229 @@ jest.mock('@actions/core')
 describe('ApprovalProcess', () => {
   let approvalProcess
   let mockGitHubClient
-  let mockReactionManager
   let mockConfig
 
   beforeEach(() => {
     jest.clearAllMocks()
 
     mockGitHubClient = {
-      getPullRequestHeadSha: jest.fn(),
-      getPullRequestMergeRef: jest.fn(),
-      getRefSha: jest.fn(),
-      getAuthenticatedUser: jest.fn(),
-      createIssueComment: jest.fn(),
-      deleteStaleIssueComments: jest.fn(),
-      getWorkflowRunUrl: jest.fn()
-    }
-
-    mockReactionManager = {
-      createReaction: jest.fn(),
-      getEligibleReactions: jest.fn(),
-      reactions: {
-        APPROVE: '+1',
-        REJECT: '-1',
-        WAIT: 'eyes',
-        SUCCESS: 'rocket',
-        FAILED: 'confused'
-      }
+      getCurrentCommitSha: jest.fn(),
+      getWorkflowRunUrl: jest.fn(),
+      createIssueCommentIfNotExists: jest.fn(),
+      getEligibleReviewsForCommit: jest.fn()
     }
 
     mockConfig = {
-      commentFooters: ['Test comment footer'],
-      commentHeaders: ['Test comment header'],
-      pollInterval: 1,
-      reviewerPermissions: ['write', 'admin']
+      reviewerPermissions: ['write', 'admin'],
+      authorsCanReview: false
     }
 
-    approvalProcess = new ApprovalProcess(
-      mockGitHubClient,
-      mockReactionManager,
-      mockConfig
-    )
+    approvalProcess = new ApprovalProcess(mockGitHubClient, mockConfig)
   })
 
   describe('run', () => {
     beforeEach(() => {
-      mockGitHubClient.getWorkflowRunUrl.mockReturnValue('http://test-url.com')
-      mockGitHubClient.getAuthenticatedUser.mockResolvedValue({
-        id: 'test-user-id'
-      })
-      mockGitHubClient.createIssueComment.mockResolvedValue({
+      mockGitHubClient.getCurrentCommitSha.mockReturnValue('test-commit-sha')
+      mockGitHubClient.getWorkflowRunUrl.mockResolvedValue(
+        'http://test-url.com'
+      )
+      mockGitHubClient.createIssueCommentIfNotExists.mockResolvedValue({
         id: 'test-comment-id',
-        html_url: 'http://test-url.com'
+        html_url: 'http://test-comment-url.com'
       })
-      approvalProcess.waitForApproval = jest.fn()
     })
 
-    test('creates a new issue comment', async () => {
+    test('creates instructional comment with correct content', async () => {
+      mockGitHubClient.getEligibleReviewsForCommit.mockResolvedValue([
+        {
+          id: 1,
+          user: { login: 'reviewer1' },
+          reviewType: 'approval'
+        }
+      ])
+
       await approvalProcess.run()
 
-      const commentBody = [
-        ...mockConfig.commentHeaders,
-        'http://test-url.com',
-        ...mockConfig.commentFooters
-      ].join('\n\n')
-      expect(mockGitHubClient.getWorkflowRunUrl).toHaveBeenCalled()
-      expect(mockGitHubClient.createIssueComment).toHaveBeenCalledWith(
-        commentBody
+      expect(
+        mockGitHubClient.createIssueCommentIfNotExists
+      ).toHaveBeenCalledWith(
+        expect.stringContaining(
+          'A repository maintainer needs to approve these workflow run(s).'
+        ),
+        expect.stringContaining(
+          'A repository maintainer needs to approve these workflow run(s).'
+        )
       )
-      expect(core.saveState).toHaveBeenCalledWith(
-        'comment-id',
-        'test-comment-id'
+      expect(
+        mockGitHubClient.createIssueCommentIfNotExists
+      ).toHaveBeenCalledWith(
+        expect.stringContaining('Submit an approval review'),
+        expect.stringContaining(
+          'A repository maintainer needs to approve these workflow run(s).'
+        )
       )
-      expect(core.setOutput).toHaveBeenCalledWith(
-        'comment-id',
-        'test-comment-id'
+      expect(
+        mockGitHubClient.createIssueCommentIfNotExists
+      ).toHaveBeenCalledWith(
+        expect.stringContaining('/deploy'),
+        expect.stringContaining(
+          'A repository maintainer needs to approve these workflow run(s).'
+        )
       )
-      // expect(mockReactionManager.createReaction).toHaveBeenCalledWith(
-      //   'test-comment-id',
-      //   mockReactionManager.reactions.WAIT
-      // )
-      // expect(mockGitHubClient.deleteStaleIssueComments).toHaveBeenCalledWith(
-      //   mockConfig.commentHeader
-      // )
     })
 
-    test('creates success reaction when approval is successful', async () => {
+    test('succeeds when approval review is found', async () => {
+      mockGitHubClient.getEligibleReviewsForCommit.mockResolvedValue([
+        {
+          id: 123,
+          user: { login: 'reviewer1' },
+          reviewType: 'approval'
+        }
+      ])
+
       await approvalProcess.run()
 
-      expect(mockReactionManager.createReaction).toHaveBeenCalledWith(
-        'test-comment-id',
-        mockReactionManager.reactions.SUCCESS
+      expect(core.setOutput).toHaveBeenCalledWith('approved-by', 'reviewer1')
+      expect(core.setOutput).toHaveBeenCalledWith('review-id', 123)
+      expect(core.setOutput).toHaveBeenCalledWith('review-type', 'approval')
+      expect(core.info).toHaveBeenCalledWith(
+        'Workflow approved by reviewer1 via approval review'
       )
     })
 
-    test('creates failed reaction when approval fails', async () => {
-      approvalProcess.waitForApproval.mockRejectedValue(
-        new Error('Approval failed')
+    test('succeeds when deploy command review is found', async () => {
+      mockGitHubClient.getEligibleReviewsForCommit.mockResolvedValue([
+        {
+          id: 456,
+          user: { login: 'reviewer2' },
+          reviewType: 'comment'
+        }
+      ])
+
+      await approvalProcess.run()
+
+      expect(core.setOutput).toHaveBeenCalledWith('approved-by', 'reviewer2')
+      expect(core.setOutput).toHaveBeenCalledWith('review-id', 456)
+      expect(core.setOutput).toHaveBeenCalledWith('review-type', 'comment')
+      expect(core.info).toHaveBeenCalledWith(
+        'Workflow approved by reviewer2 via comment review'
       )
+    })
 
-      await expect(approvalProcess.run()).rejects.toThrow('Approval failed')
+    test('fails when no eligible reviews are found', async () => {
+      mockGitHubClient.getEligibleReviewsForCommit.mockResolvedValue([])
 
-      expect(mockReactionManager.createReaction).toHaveBeenCalledWith(
-        'test-comment-id',
-        mockReactionManager.reactions.FAILED
+      await expect(approvalProcess.run()).rejects.toThrow(
+        'No eligible approval found for commit test-commit-sha'
+      )
+      expect(core.setFailed).toHaveBeenCalledWith(
+        expect.stringContaining('No eligible approval found')
+      )
+    })
+
+    test('calls getEligibleReviewsForCommit with correct parameters', async () => {
+      mockGitHubClient.getEligibleReviewsForCommit.mockResolvedValue([])
+
+      try {
+        await approvalProcess.run()
+      } catch (error) {
+        // Expected to fail
+      }
+
+      expect(mockGitHubClient.getEligibleReviewsForCommit).toHaveBeenCalledWith(
+        'test-commit-sha',
+        ['write', 'admin'],
+        false
+      )
+    })
+
+    test('respects authorsCanReview config', async () => {
+      mockConfig.authorsCanReview = true
+      mockGitHubClient.getEligibleReviewsForCommit.mockResolvedValue([])
+
+      try {
+        await approvalProcess.run()
+      } catch (error) {
+        // Expected to fail
+      }
+
+      expect(mockGitHubClient.getEligibleReviewsForCommit).toHaveBeenCalledWith(
+        'test-commit-sha',
+        ['write', 'admin'],
+        true
       )
     })
   })
 
-  describe('waitForApproval', () => {
-    test('resolves when approved', async () => {
-      mockReactionManager.getEligibleReactions.mockResolvedValue([
-        { content: '+1', user: { login: 'approver' } }
-      ])
+  describe('checkForApproval', () => {
+    test('returns null when no eligible reviews found', async () => {
+      mockGitHubClient.getEligibleReviewsForCommit.mockResolvedValue([])
 
-      const waitPromise = approvalProcess.waitForApproval('test-comment-id')
-      await waitPromise
+      const result = await approvalProcess.checkForApproval(
+        'test-sha',
+        ['write', 'admin'],
+        false
+      )
 
-      expect(core.saveState).toHaveBeenCalledWith('approved-by', 'approver')
-      expect(core.setOutput).toHaveBeenCalledWith('approved-by', 'approver')
-      expect(core.info).toHaveBeenCalledWith('Workflow approved by approver')
+      expect(result).toBeNull()
+      expect(core.info).toHaveBeenCalledWith(
+        'No eligible approval reviews found'
+      )
     })
 
-    test('throws an error when rejected', async () => {
-      mockReactionManager.getEligibleReactions
-        .mockResolvedValueOnce([])
-        .mockResolvedValueOnce([{ content: '-1', user: { login: 'rejector' } }])
+    test('returns first eligible review when multiple found', async () => {
+      const mockReviews = [
+        {
+          id: 1,
+          user: { login: 'reviewer1' },
+          reviewType: 'approval'
+        },
+        {
+          id: 2,
+          user: { login: 'reviewer2' },
+          reviewType: 'comment'
+        }
+      ]
+      mockGitHubClient.getEligibleReviewsForCommit.mockResolvedValue(
+        mockReviews
+      )
 
-      const waitPromise = approvalProcess.waitForApproval(
-        'test-comment-id',
-        0.1,
-        1
-      ) // 1s timeout
+      const result = await approvalProcess.checkForApproval(
+        'test-sha',
+        ['write', 'admin'],
+        false
+      )
 
-      await expect(waitPromise).rejects.toThrow('Workflow rejected by rejector')
-      expect(mockReactionManager.getEligibleReactions).toHaveBeenCalledTimes(2)
-      expect(core.saveState).toHaveBeenCalledWith('rejected-by', 'rejector')
-      expect(core.setOutput).toHaveBeenCalledWith('rejected-by', 'rejector')
-    }, 2000) // Set test timeout to 2 seconds
+      expect(result).toEqual({
+        approvedBy: 'reviewer1',
+        reviewId: 1,
+        reviewType: 'approval'
+      })
+    })
 
-    test('continues checking until a decision is made', async () => {
-      mockReactionManager.getEligibleReactions
-        .mockResolvedValueOnce([])
-        .mockResolvedValueOnce([])
-        .mockResolvedValueOnce([{ content: '+1', user: { login: 'approver' } }])
+    test('returns comment review when found', async () => {
+      const mockReviews = [
+        {
+          id: 3,
+          user: { login: 'deployer' },
+          reviewType: 'comment'
+        }
+      ]
+      mockGitHubClient.getEligibleReviewsForCommit.mockResolvedValue(
+        mockReviews
+      )
 
-      const waitPromise = approvalProcess.waitForApproval(
-        'test-comment-id',
-        0.1,
-        1
-      ) // 1s timeout
+      const result = await approvalProcess.checkForApproval(
+        'test-sha',
+        ['write', 'admin'],
+        false
+      )
 
-      await waitPromise
-
-      expect(mockReactionManager.getEligibleReactions).toHaveBeenCalledTimes(3)
-      expect(core.saveState).toHaveBeenCalledWith('approved-by', 'approver')
-      expect(core.setOutput).toHaveBeenCalledWith('approved-by', 'approver')
-    }, 2000) // Set test timeout to 2 seconds
+      expect(result).toEqual({
+        approvedBy: 'deployer',
+        reviewId: 3,
+        reviewType: 'comment'
+      })
+    })
   })
 })

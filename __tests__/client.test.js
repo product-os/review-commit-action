@@ -31,7 +31,8 @@ describe('GitHubClient', () => {
           listForIssueComment: jest.fn()
         },
         pulls: {
-          listCommits: jest.fn()
+          listCommits: jest.fn(),
+          listReviews: jest.fn()
         }
       }
     }
@@ -124,12 +125,34 @@ describe('GitHubClient', () => {
     })
   })
 
-  test('createIssueComment throws an error when comment creation fails', async () => {
+  test('createIssueComment returns null when comment creation fails', async () => {
     mockOctokit.rest.issues.createComment.mockResolvedValue({ data: null })
 
-    await expect(
-      gitHubClient.createIssueComment('Test PR comment body')
-    ).rejects.toThrow('Failed to create issue comment!')
+    const comment = await gitHubClient.createIssueComment(
+      'Test PR comment body'
+    )
+    expect(comment).toBeNull()
+  })
+
+  test('createIssueComment returns null on permission error', async () => {
+    const permissionError = new Error('Forbidden')
+    permissionError.status = 403
+    mockOctokit.rest.issues.createComment.mockRejectedValue(permissionError)
+
+    const comment = await gitHubClient.createIssueComment(
+      'Test PR comment body'
+    )
+    expect(comment).toBeNull()
+  })
+
+  test('createIssueComment returns null on other errors', async () => {
+    const genericError = new Error('Network error')
+    mockOctokit.rest.issues.createComment.mockRejectedValue(genericError)
+
+    const comment = await gitHubClient.createIssueComment(
+      'Test PR comment body'
+    )
+    expect(comment).toBeNull()
   })
 
   test('listIssueComments returns all PR comments', async () => {
@@ -150,21 +173,17 @@ describe('GitHubClient', () => {
     })
   })
 
-  test('deleteStaleIssueComments deletes stale comments', async () => {
+  test('findExistingComment returns existing comment when pattern matches', async () => {
     const mockComments = [
       {
         id: 1,
-        body: 'Stale comment',
-        user: { id: 'testUserId' },
-        created_at: '2023-01-01',
-        updated_at: '2023-01-01'
+        body: 'Some other comment',
+        user: { id: 'otherUserId' }
       },
       {
         id: 2,
-        body: 'Fresh comment',
-        user: { id: 'testUserId' },
-        created_at: '2023-01-02',
-        updated_at: '2023-01-03'
+        body: 'A repository maintainer needs to approve these workflow run(s).',
+        user: { id: 'testUserId' }
       }
     ]
     mockOctokit.rest.issues.listComments.mockResolvedValue({
@@ -174,13 +193,99 @@ describe('GitHubClient', () => {
       .fn()
       .mockResolvedValue({ id: 'testUserId' })
 
-    await gitHubClient.deleteStaleIssueComments('Stale')
-    expect(mockOctokit.rest.issues.deleteComment).toHaveBeenCalledWith({
+    const existingComment = await gitHubClient.findExistingComment(
+      'A repository maintainer needs to approve'
+    )
+    expect(existingComment).toEqual(mockComments[1])
+  })
+
+  test('findExistingComment returns null when no matching comment exists', async () => {
+    const mockComments = [
+      {
+        id: 1,
+        body: 'Some other comment',
+        user: { id: 'testUserId' }
+      }
+    ]
+    mockOctokit.rest.issues.listComments.mockResolvedValue({
+      data: mockComments
+    })
+    gitHubClient.getAuthenticatedUser = jest
+      .fn()
+      .mockResolvedValue({ id: 'testUserId' })
+
+    const existingComment = await gitHubClient.findExistingComment(
+      'A repository maintainer needs to approve'
+    )
+    expect(existingComment).toBeNull()
+  })
+
+  test('createIssueCommentIfNotExists creates new comment when none exists', async () => {
+    const mockComment = { id: 1, url: 'http://test.com/comment' }
+    mockOctokit.rest.issues.listComments.mockResolvedValue({ data: [] })
+    mockOctokit.rest.issues.createComment.mockResolvedValue({
+      data: mockComment
+    })
+    gitHubClient.getAuthenticatedUser = jest
+      .fn()
+      .mockResolvedValue({ id: 'testUserId' })
+
+    const comment = await gitHubClient.createIssueCommentIfNotExists(
+      'Test comment body',
+      'Test comment'
+    )
+    expect(comment).toEqual(mockComment)
+    expect(mockOctokit.rest.issues.createComment).toHaveBeenCalledWith({
       owner: 'testOwner',
       repo: 'testRepo',
-      comment_id: 1
+      issue_number: 1,
+      body: 'Test comment body'
     })
-    expect(mockOctokit.rest.issues.deleteComment).toHaveBeenCalledTimes(1)
+  })
+
+  test('createIssueCommentIfNotExists returns existing comment when one exists', async () => {
+    const existingComment = {
+      id: 2,
+      body: 'Test comment body',
+      user: { id: 'testUserId' }
+    }
+    mockOctokit.rest.issues.listComments.mockResolvedValue({
+      data: [existingComment]
+    })
+    gitHubClient.getAuthenticatedUser = jest
+      .fn()
+      .mockResolvedValue({ id: 'testUserId' })
+
+    const comment = await gitHubClient.createIssueCommentIfNotExists(
+      'Test comment body',
+      'Test comment'
+    )
+    expect(comment).toEqual(existingComment)
+    expect(mockOctokit.rest.issues.createComment).not.toHaveBeenCalled()
+  })
+
+  test('createIssueCommentIfNotExists returns null when comment creation fails', async () => {
+    mockOctokit.rest.issues.listComments.mockResolvedValue({ data: [] })
+    mockOctokit.rest.issues.createComment.mockResolvedValue({ data: null })
+    gitHubClient.getAuthenticatedUser = jest
+      .fn()
+      .mockResolvedValue({ id: 'testUserId' })
+
+    const comment = await gitHubClient.createIssueCommentIfNotExists(
+      'Test comment body',
+      'Test comment'
+    )
+    expect(comment).toBeNull()
+  })
+
+  test('findExistingComment returns null when listing comments fails', async () => {
+    const permissionError = new Error('Forbidden')
+    permissionError.status = 403
+    mockOctokit.rest.issues.listComments.mockRejectedValue(permissionError)
+
+    const existingComment =
+      await gitHubClient.findExistingComment('Test pattern')
+    expect(existingComment).toBeNull()
   })
 
   test('getUserPermission returns the correct permission level', async () => {
@@ -247,5 +352,290 @@ describe('GitHubClient', () => {
         comment_id: 123
       }
     )
+  })
+
+  // Tests for new review-based functionality
+  describe('getCurrentCommitSha', () => {
+    test('returns PR head SHA when in pull request context', () => {
+      const sha = gitHubClient.getCurrentCommitSha()
+      expect(sha).toBe('testSha')
+    })
+
+    test('returns context SHA when not in pull request context', () => {
+      gitHubClient.context.payload.pull_request = null
+      gitHubClient.context.sha = 'fallback-sha'
+      const sha = gitHubClient.getCurrentCommitSha()
+      expect(sha).toBe('fallback-sha')
+    })
+  })
+
+  describe('getPullRequestReviews', () => {
+    beforeEach(() => {
+      mockOctokit.rest.pulls.listReviews = jest.fn()
+    })
+
+    test('returns all reviews for the pull request', async () => {
+      const mockReviews = [
+        { id: 1, state: 'APPROVED', user: { login: 'reviewer1' } },
+        { id: 2, state: 'CHANGES_REQUESTED', user: { login: 'reviewer2' } }
+      ]
+      mockOctokit.rest.pulls.listReviews.mockResolvedValue({
+        data: mockReviews
+      })
+
+      const reviews = await gitHubClient.getPullRequestReviews()
+      expect(reviews).toEqual(mockReviews)
+      expect(mockOctokit.rest.pulls.listReviews).toHaveBeenCalledWith({
+        owner: 'testOwner',
+        repo: 'testRepo',
+        pull_number: 1
+      })
+    })
+  })
+
+  describe('getReviewsForCommit', () => {
+    beforeEach(() => {
+      mockOctokit.rest.pulls.listReviews = jest.fn()
+    })
+
+    test('returns reviews for specific commit SHA', async () => {
+      const mockReviews = [
+        { id: 1, commit_id: 'target-sha', state: 'APPROVED' },
+        { id: 2, commit_id: 'other-sha', state: 'APPROVED' },
+        { id: 3, commit_id: 'target-sha', state: 'CHANGES_REQUESTED' }
+      ]
+      mockOctokit.rest.pulls.listReviews.mockResolvedValue({
+        data: mockReviews
+      })
+
+      const reviews = await gitHubClient.getReviewsForCommit('target-sha')
+      expect(reviews).toHaveLength(2)
+      expect(reviews[0].commit_id).toBe('target-sha')
+      expect(reviews[1].commit_id).toBe('target-sha')
+    })
+  })
+
+  describe('isApprovalReview', () => {
+    test('returns true for APPROVED state', () => {
+      const review = { state: 'APPROVED' }
+      expect(gitHubClient.isApprovalReview(review)).toBe(true)
+    })
+
+    test('returns false for non-APPROVED states', () => {
+      expect(
+        gitHubClient.isApprovalReview({ state: 'CHANGES_REQUESTED' })
+      ).toBe(false)
+      expect(gitHubClient.isApprovalReview({ state: 'COMMENTED' })).toBe(false)
+      expect(gitHubClient.isApprovalReview({ state: 'DISMISSED' })).toBe(false)
+    })
+  })
+
+  describe('isDeployCommandReview', () => {
+    test('returns true for review starting with /deploy command', () => {
+      expect(gitHubClient.isDeployCommandReview({ body: '/deploy' })).toBe(true)
+      expect(gitHubClient.isDeployCommandReview({ body: '/deploy now' })).toBe(
+        true
+      )
+      expect(
+        gitHubClient.isDeployCommandReview({ body: '/DEPLOY please' })
+      ).toBe(true)
+      expect(
+        gitHubClient.isDeployCommandReview({ body: '/deploy this is good' })
+      ).toBe(true)
+      expect(
+        gitHubClient.isDeployCommandReview({ body: '/deploy\nwith newline' })
+      ).toBe(true)
+      expect(gitHubClient.isDeployCommandReview({ body: '/Deploy' })).toBe(true)
+    })
+
+    test('returns true for /deploy with various spacing', () => {
+      expect(gitHubClient.isDeployCommandReview({ body: '  /deploy  ' })).toBe(
+        true
+      )
+      expect(gitHubClient.isDeployCommandReview({ body: '\t/deploy\t' })).toBe(
+        true
+      )
+      expect(gitHubClient.isDeployCommandReview({ body: '\n/deploy\n' })).toBe(
+        true
+      )
+    })
+
+    test('returns false for /deploy not at start of comment', () => {
+      expect(
+        gitHubClient.isDeployCommandReview({ body: 'Please /deploy this' })
+      ).toBe(false)
+      expect(
+        gitHubClient.isDeployCommandReview({ body: 'LGTM /deploy now' })
+      ).toBe(false)
+      expect(
+        gitHubClient.isDeployCommandReview({ body: 'Can you /deploy please?' })
+      ).toBe(false)
+      expect(gitHubClient.isDeployCommandReview({ body: 'deploy this' })).toBe(
+        false
+      )
+    })
+
+    test('returns false for review without /deploy command', () => {
+      expect(gitHubClient.isDeployCommandReview({ body: 'LGTM' })).toBe(false)
+      expect(gitHubClient.isDeployCommandReview({ body: 'deploy this' })).toBe(
+        false
+      )
+      expect(gitHubClient.isDeployCommandReview({ body: null })).toBe(false)
+      expect(gitHubClient.isDeployCommandReview({ body: undefined })).toBe(
+        false
+      )
+      expect(gitHubClient.isDeployCommandReview({ body: '' })).toBe(false)
+      expect(gitHubClient.isDeployCommandReview({ body: '   ' })).toBe(false)
+    })
+  })
+
+  describe('getEligibleReviewsForCommit', () => {
+    beforeEach(() => {
+      mockOctokit.rest.pulls.listReviews = jest.fn()
+      // Mock listCommits for getPullRequestAuthors
+      mockOctokit.rest.pulls.listCommits.mockResolvedValue({
+        data: [{ author: { id: 'author1' }, committer: { id: 'author1' } }]
+      })
+    })
+
+    test('returns eligible approval reviews', async () => {
+      const mockReviews = [
+        {
+          id: 1,
+          commit_id: 'test-sha',
+          state: 'APPROVED',
+          user: { id: 'reviewer1', login: 'reviewer1' },
+          body: 'LGTM'
+        }
+      ]
+      mockOctokit.rest.pulls.listReviews.mockResolvedValue({
+        data: mockReviews
+      })
+      mockOctokit.rest.repos.getCollaboratorPermissionLevel.mockResolvedValue({
+        data: { permission: 'write' }
+      })
+
+      const reviews = await gitHubClient.getEligibleReviewsForCommit('test-sha')
+      expect(reviews).toHaveLength(1)
+      expect(reviews[0].reviewType).toBe('approval')
+    })
+
+    test('returns eligible deploy command reviews', async () => {
+      const mockReviews = [
+        {
+          id: 1,
+          commit_id: 'test-sha',
+          state: 'COMMENTED',
+          user: { id: 'reviewer1', login: 'reviewer1' },
+          body: '/deploy now'
+        }
+      ]
+      mockOctokit.rest.pulls.listReviews.mockResolvedValue({
+        data: mockReviews
+      })
+      mockOctokit.rest.repos.getCollaboratorPermissionLevel.mockResolvedValue({
+        data: { permission: 'admin' }
+      })
+
+      const reviews = await gitHubClient.getEligibleReviewsForCommit('test-sha')
+      expect(reviews).toHaveLength(1)
+      expect(reviews[0].reviewType).toBe('comment')
+    })
+
+    test('excludes reviews from PR authors when allowAuthors is false', async () => {
+      const mockReviews = [
+        {
+          id: 1,
+          commit_id: 'test-sha',
+          state: 'APPROVED',
+          user: { id: 'author1', login: 'author1' },
+          body: 'LGTM'
+        }
+      ]
+      mockOctokit.rest.pulls.listReviews.mockResolvedValue({
+        data: mockReviews
+      })
+
+      const reviews = await gitHubClient.getEligibleReviewsForCommit(
+        'test-sha',
+        ['write', 'admin'],
+        false
+      )
+      expect(reviews).toHaveLength(0)
+    })
+
+    test('includes reviews from PR authors when allowAuthors is true', async () => {
+      const mockReviews = [
+        {
+          id: 1,
+          commit_id: 'test-sha',
+          state: 'APPROVED',
+          user: { id: 'author1', login: 'author1' },
+          body: 'LGTM'
+        }
+      ]
+      mockOctokit.rest.pulls.listReviews.mockResolvedValue({
+        data: mockReviews
+      })
+      mockOctokit.rest.repos.getCollaboratorPermissionLevel.mockResolvedValue({
+        data: { permission: 'write' }
+      })
+
+      const reviews = await gitHubClient.getEligibleReviewsForCommit(
+        'test-sha',
+        ['write', 'admin'],
+        true
+      )
+      expect(reviews).toHaveLength(1)
+    })
+
+    test('excludes reviews from users with insufficient permissions', async () => {
+      const mockReviews = [
+        {
+          id: 1,
+          commit_id: 'test-sha',
+          state: 'APPROVED',
+          user: { id: 'reviewer1', login: 'reviewer1' },
+          body: 'LGTM'
+        }
+      ]
+      mockOctokit.rest.pulls.listReviews.mockResolvedValue({
+        data: mockReviews
+      })
+      mockOctokit.rest.repos.getCollaboratorPermissionLevel.mockResolvedValue({
+        data: { permission: 'read' }
+      })
+
+      const reviews = await gitHubClient.getEligibleReviewsForCommit('test-sha')
+      expect(reviews).toHaveLength(0)
+    })
+
+    test('excludes reviews that are neither approved nor deploy commands', async () => {
+      const mockReviews = [
+        {
+          id: 1,
+          commit_id: 'test-sha',
+          state: 'CHANGES_REQUESTED',
+          user: { id: 'reviewer1', login: 'reviewer1' },
+          body: 'Please fix this'
+        },
+        {
+          id: 2,
+          commit_id: 'test-sha',
+          state: 'COMMENTED',
+          user: { id: 'reviewer2', login: 'reviewer2' },
+          body: 'Just a comment'
+        }
+      ]
+      mockOctokit.rest.pulls.listReviews.mockResolvedValue({
+        data: mockReviews
+      })
+      mockOctokit.rest.repos.getCollaboratorPermissionLevel.mockResolvedValue({
+        data: { permission: 'write' }
+      })
+
+      const reviews = await gitHubClient.getEligibleReviewsForCommit('test-sha')
+      expect(reviews).toHaveLength(0)
+    })
   })
 })

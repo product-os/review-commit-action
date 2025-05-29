@@ -60,19 +60,38 @@ class GitHubClient {
   // https://octokit.github.io/rest.js/v18/#issues-create-comment
   // https://docs.github.com/en/rest/issues/comments#create-an-issue-comment
   async createIssueComment(body) {
-    const { data: comment } = await this.octokit.rest.issues.createComment({
-      ...this.context.repo,
-      issue_number: this.context.payload.pull_request.number,
-      body
-    })
+    try {
+      const { data: comment } = await this.octokit.rest.issues.createComment({
+        ...this.context.repo,
+        issue_number: this.context.payload.pull_request.number,
+        body
+      })
 
-    if (!comment || !comment.id) {
-      throw new Error('Failed to create issue comment!')
+      if (!comment || !comment.id) {
+        core.warning(
+          'Failed to create issue comment - no comment data returned'
+        )
+        return null
+      }
+
+      core.info(`Created new issue comment: ${comment.url}`)
+      core.debug(`Comment payload:\n${JSON.stringify(comment, null, 2)}`)
+      return comment
+    } catch (error) {
+      // Log warning for permission errors instead of failing the action
+      if (error.status === 403) {
+        core.warning(
+          'Unable to create comment due to insufficient permissions. ' +
+            'The action will continue without posting an instructional comment.'
+        )
+      } else {
+        core.warning(
+          `Failed to create issue comment: ${error.message}. ` +
+            'The action will continue without posting an instructional comment.'
+        )
+      }
+      return null
     }
-
-    core.info(`Created new issue comment: ${comment.url}`)
-    core.debug(`Comment payload:\n${JSON.stringify(comment, null, 2)}`)
-    return comment
   }
 
   // https://octokit.github.io/rest.js/v18/#issues-list-comments
@@ -87,36 +106,50 @@ class GitHubClient {
     return comments
   }
 
-  // Delete all PR comments that start with the provided string
-  async deleteStaleIssueComments(startsWith) {
-    const comments = await this.listIssueComments()
-    const userId = (await this.getAuthenticatedUser()).id
-    const filteredComments = comments.filter(
-      c =>
-        c.body.startsWith(startsWith) &&
-        c.user.id === userId &&
-        c.created_at === c.updated_at
-    )
+  // Check if a comment with similar content already exists from the authenticated user
+  async findExistingComment(contentPattern) {
+    try {
+      const comments = await this.listIssueComments()
+      const userId = (await this.getAuthenticatedUser()).id
 
-    for (const comment of filteredComments) {
-      await this.octokit.rest.issues.deleteComment({
-        ...this.context.repo,
-        comment_id: comment.id
-      })
+      // Find comments from the authenticated user that match the pattern
+      const existingComment = comments.find(
+        comment =>
+          comment.user.id === userId && comment.body.includes(contentPattern)
+      )
+
+      if (existingComment) {
+        core.info(`Found existing comment with ID: ${existingComment.id}`)
+        return existingComment
+      }
+
+      core.debug('No existing comment found matching the pattern')
+      return null
+    } catch (error) {
+      // If we can't list comments due to permissions, assume no existing comment
+      core.debug(
+        `Unable to check for existing comments: ${error.message}. Proceeding without check.`
+      )
+      return null
     }
-    core.info(`Deleted ${filteredComments.length} stale comments.`)
   }
 
-  // https://octokit.github.io/rest.js/v21/#repos-get-collaborator-permission-level
-  // https://docs.github.com/en/rest/collaborators/collaborators#get-repository-permissions-for-a-user
-  async getUserPermission(username) {
-    const { data: permissionData } =
-      await this.octokit.rest.repos.getCollaboratorPermissionLevel({
-        ...this.context.repo,
-        username
-      })
-    core.debug(`User ${username} has permission: ${permissionData.permission}`)
-    return permissionData.permission
+  // Create a new PR comment with the provided body, but only if a similar one doesn't exist
+  async createIssueCommentIfNotExists(body, uniquePattern) {
+    // Check if a comment with this pattern already exists
+    const existingComment = await this.findExistingComment(uniquePattern)
+
+    if (existingComment) {
+      core.info('Skipping comment creation - similar comment already exists')
+      return existingComment
+    }
+
+    // Create new comment if none exists
+    const newComment = await this.createIssueComment(body)
+    if (!newComment) {
+      core.debug('Comment creation failed, continuing without comment')
+    }
+    return newComment
   }
 
   // https://octokit.github.io/rest.js/v18/#reactions-create-for-issue-comment
@@ -155,6 +188,113 @@ class GitHubClient {
       reaction_id: reactionId
     })
     core.info(`Deleted reaction ID ${reactionId}`)
+  }
+
+  // Get the current commit SHA from the workflow context
+  getCurrentCommitSha() {
+    // In pull request events, we want the head SHA (the commit being tested)
+    if (this.context.payload.pull_request) {
+      return this.context.payload.pull_request.head.sha
+    }
+    // Fallback to the context SHA
+    return this.context.sha
+  }
+
+  // https://octokit.github.io/rest.js/v18/#pulls-list-reviews
+  // https://docs.github.com/en/rest/pulls/reviews#list-reviews-on-a-pull-request
+  async getPullRequestReviews() {
+    const { data: reviews } = await this.octokit.rest.pulls.listReviews({
+      ...this.context.repo,
+      pull_number: this.context.payload.pull_request.number
+    })
+    core.debug(`Found ${reviews.length} reviews`)
+    core.debug(`Reviews payload:\n${JSON.stringify(reviews, null, 2)}`)
+    return reviews
+  }
+
+  // Get reviews for a specific commit SHA
+  async getReviewsForCommit(commitSha) {
+    const allReviews = await this.getPullRequestReviews()
+
+    // Filter reviews that are associated with the specific commit
+    const commitReviews = allReviews.filter(
+      review => review.commit_id === commitSha
+    )
+
+    core.debug(`Found ${commitReviews.length} reviews for commit ${commitSha}`)
+    return commitReviews
+  }
+
+  // Check if a review is an approval review
+  isApprovalReview(review) {
+    return review.state === 'APPROVED'
+  }
+
+  // Check if a review comment contains the deploy command
+  isDeployCommandReview(review) {
+    if (!review.body) return false
+
+    // Check if the review body starts with /deploy (case insensitive)
+    const trimmedBody = review.body.trim().toLowerCase()
+    return trimmedBody.startsWith('/deploy')
+  }
+
+  // Get eligible reviews for approval (either APPROVED state or deploy command)
+  async getEligibleReviewsForCommit(
+    commitSha,
+    requiredPermissions = ['write', 'admin'],
+    allowAuthors = false
+  ) {
+    const reviews = await this.getReviewsForCommit(commitSha)
+    const eligibleReviews = []
+
+    // Get PR authors if we need to exclude them
+    let authorIds = []
+    if (!allowAuthors) {
+      authorIds = await this.getPullRequestAuthors()
+    }
+
+    for (const review of reviews) {
+      // Skip if author is not allowed and this is from an author
+      if (!allowAuthors && authorIds.includes(review.user.id)) {
+        core.debug(`Skipping review from PR author: ${review.user.login}`)
+        continue
+      }
+
+      // Check user permissions
+      const userPermission = await this.getUserPermission(review.user.login)
+      if (!requiredPermissions.includes(userPermission)) {
+        core.debug(
+          `User ${review.user.login} has insufficient permissions: ${userPermission}`
+        )
+        continue
+      }
+
+      // Check if this is an eligible review (approval or deploy command)
+      if (this.isApprovalReview(review) || this.isDeployCommandReview(review)) {
+        eligibleReviews.push({
+          ...review,
+          reviewType: this.isApprovalReview(review) ? 'approval' : 'comment'
+        })
+      }
+    }
+
+    core.debug(
+      `Found ${eligibleReviews.length} eligible reviews for commit ${commitSha}`
+    )
+    return eligibleReviews
+  }
+
+  // https://octokit.github.io/rest.js/v21/#repos-get-collaborator-permission-level
+  // https://docs.github.com/en/rest/collaborators/collaborators#get-repository-permissions-for-a-user
+  async getUserPermission(username) {
+    const { data: permissionData } =
+      await this.octokit.rest.repos.getCollaboratorPermissionLevel({
+        ...this.context.repo,
+        username
+      })
+    core.debug(`User ${username} has permission: ${permissionData.permission}`)
+    return permissionData.permission
   }
 }
 

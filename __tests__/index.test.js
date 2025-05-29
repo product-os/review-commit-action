@@ -1,14 +1,12 @@
 const core = require('@actions/core')
 const github = require('@actions/github')
 const { GitHubClient } = require('../src/client')
-const { ReactionManager } = require('../src/reactions')
 const { ApprovalProcess } = require('../src/approval')
 const { PostProcess } = require('../src/post')
 
 jest.mock('@actions/core')
 jest.mock('@actions/github')
 jest.mock('../src/client')
-jest.mock('../src/reactions')
 jest.mock('../src/approval')
 jest.mock('../src/post')
 
@@ -24,8 +22,14 @@ describe('index.js', () => {
     // Mock input values
     core.getInput.mockImplementation(name => {
       const inputs = {
-        'github-token': 'mock-token',
-        'poll-interval': '10'
+        'github-token': 'mock-token'
+      }
+      return inputs[name]
+    })
+
+    core.getBooleanInput.mockImplementation(name => {
+      const inputs = {
+        'allow-authors': false
       }
       return inputs[name]
     })
@@ -45,16 +49,13 @@ describe('index.js', () => {
     expect(github.getOctokit).toHaveBeenCalledWith('mock-token')
     expect(GitHubClient).toHaveBeenCalledWith(mockOctokit, github.context)
 
-    // Verify that ReactionManager was created
-    expect(ReactionManager).toHaveBeenCalled()
-
     // Verify that ApprovalProcess was created with correct config
     expect(ApprovalProcess).toHaveBeenCalledWith(
       expect.any(GitHubClient),
-      expect.any(ReactionManager),
       expect.objectContaining({
         token: 'mock-token',
-        pollInterval: 10
+        authorsCanReview: false,
+        reviewerPermissions: ['write', 'admin']
       })
     )
 
@@ -83,8 +84,14 @@ describe('index.js', () => {
     // Mock input values with defaults
     core.getInput.mockImplementation(name => {
       const inputs = {
-        'github-token': 'default-token',
-        'poll-interval': ''
+        'github-token': 'default-token'
+      }
+      return inputs[name]
+    })
+
+    core.getBooleanInput.mockImplementation(name => {
+      const inputs = {
+        'allow-authors': false
       }
       return inputs[name]
     })
@@ -94,33 +101,39 @@ describe('index.js', () => {
     // Verify that ApprovalProcess was created with default config values
     expect(ApprovalProcess).toHaveBeenCalledWith(
       expect.any(GitHubClient),
-      expect.any(ReactionManager),
       expect.objectContaining({
         token: 'default-token',
-        pollInterval: 10 // default value
+        authorsCanReview: false,
+        reviewerPermissions: ['write', 'admin']
       })
     )
   })
 
-  test('run handles invalid input values', async () => {
-    // Mock input values with invalid data
+  test('run handles boolean input values correctly', async () => {
+    // Mock input values with allow-authors true
     core.getInput.mockImplementation(name => {
       const inputs = {
-        'github-token': 'mock-token',
-        'poll-interval': 'invalid'
+        'github-token': 'mock-token'
+      }
+      return inputs[name]
+    })
+
+    core.getBooleanInput.mockImplementation(name => {
+      const inputs = {
+        'allow-authors': true
       }
       return inputs[name]
     })
 
     await run()
 
-    // Verify that ApprovalProcess was created with default config values for invalid inputs
+    // Verify that ApprovalProcess was created with correct boolean config
     expect(ApprovalProcess).toHaveBeenCalledWith(
       expect.any(GitHubClient),
-      expect.any(ReactionManager),
       expect.objectContaining({
         token: 'mock-token',
-        pollInterval: 10 // default value
+        authorsCanReview: true,
+        reviewerPermissions: ['write', 'admin']
       })
     )
   })
@@ -163,14 +176,8 @@ describe('index.js', () => {
     expect(github.getOctokit).toHaveBeenCalledWith('mock-token')
     expect(GitHubClient).toHaveBeenCalledWith(mockOctokit, github.context)
 
-    // Verify that ReactionManager was created
-    expect(ReactionManager).toHaveBeenCalled()
-
     // Verify that PostProcess was created
-    expect(PostProcess).toHaveBeenCalledWith(
-      expect.any(GitHubClient),
-      expect.any(ReactionManager)
-    )
+    expect(PostProcess).toHaveBeenCalledWith(expect.any(GitHubClient))
 
     // Verify that the post process was run
     expect(PostProcess.mock.instances[0].run).toHaveBeenCalled()

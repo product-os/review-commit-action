@@ -1,85 +1,83 @@
 const core = require('@actions/core')
 
 class ApprovalProcess {
-  constructor(gitHubClient, reactionManager, config) {
+  constructor(gitHubClient, config) {
     this.gitHubClient = gitHubClient
-    this.reactionManager = reactionManager
     this.config = config
   }
 
   async run() {
-    const tokenUser = await this.gitHubClient.getAuthenticatedUser()
+    const commitSha = this.gitHubClient.getCurrentCommitSha()
+    core.info(`Checking for approval reviews on commit: ${commitSha}`)
 
-    const runUrl = await this.gitHubClient.getWorkflowRunUrl()
-
+    // Create instructional comment (only if one doesn't already exist)
     const commentBody = [
-      ...this.config.commentHeaders,
-      `${runUrl}`,
-      ...this.config.commentFooters
+      'A repository maintainer needs to approve these workflow run(s).',
+      '',
+      'To approve, maintainers can either:',
+      '• **Submit an approval review** on this pull request, OR',
+      '• **Submit a review comment** starting with `/deploy`',
+      'Then re-run the failed job(s) via the Checks tab above.',
+      '',
+      'Reviews must be on the specific commit SHA of the workflow run to be considered.'
     ].join('\n\n')
 
-    // await this.gitHubClient.deleteStaleIssueComments(
-    //   this.config.commentHeader
-    // )
-
-    const comment = await this.gitHubClient.createIssueComment(commentBody)
-
-    core.saveState('comment-id', comment.id)
-    core.setOutput('comment-id', comment.id)
-
-    // await this.reactionManager.createReaction(
-    //   comment.id,
-    //   this.reactionManager.reactions.WAIT
-    // )
+    // Use a unique pattern to identify our instructional comments
+    const uniquePattern =
+      'A repository maintainer needs to approve these workflow run(s).'
+    await this.gitHubClient.createIssueCommentIfNotExists(
+      commentBody,
+      uniquePattern
+    )
 
     try {
-      await this.waitForApproval(comment.id, this.config.pollInterval)
-      await this.reactionManager.createReaction(
-        comment.id,
-        this.reactionManager.reactions.SUCCESS
-      )
-    } catch (error) {
-      await this.reactionManager.createReaction(
-        comment.id,
-        this.reactionManager.reactions.FAILED
-      )
-      throw error
-    }
-  }
-
-  // Wait for approval by checking reactions on a comment
-  async waitForApproval(commentId, interval = 30) {
-    core.info(`Checking for reactions at ${interval}-second intervals...`)
-    for (;;) {
-      const reactions = await this.reactionManager.getEligibleReactions(
-        commentId,
+      const approvalResult = await this.checkForApproval(
+        commitSha,
         this.config.reviewerPermissions,
         this.config.authorsCanReview
       )
 
-      const rejectedBy = reactions.find(
-        r => r.content === this.reactionManager.reactions.REJECT
-      )?.user.login
-
-      if (rejectedBy) {
-        core.debug(`Workflow rejected by ${rejectedBy}`)
-        core.saveState('rejected-by', rejectedBy)
-        core.setOutput('rejected-by', rejectedBy)
-        throw new Error(`Workflow rejected by ${rejectedBy}`)
-      }
-
-      const approvedBy = reactions.find(
-        r => r.content === this.reactionManager.reactions.APPROVE
-      )?.user.login
-
-      if (approvedBy) {
-        core.saveState('approved-by', approvedBy)
-        core.setOutput('approved-by', approvedBy)
-        core.info(`Workflow approved by ${approvedBy}`)
+      if (approvalResult) {
+        core.info(
+          `Workflow approved by ${approvalResult.approvedBy} via ${approvalResult.reviewType} review`
+        )
+        core.setOutput('approved-by', approvalResult.approvedBy)
+        core.setOutput('review-id', approvalResult.reviewId)
+        core.setOutput('review-type', approvalResult.reviewType)
         return
+      } else {
+        throw new Error(
+          `No eligible approval found for commit ${commitSha}. ` +
+            `Reviews must be either APPROVED state or contain '/deploy' command ` +
+            `and be from users with write/admin permissions.`
+        )
       }
+    } catch (error) {
+      core.setFailed(error.message)
+      throw error
+    }
+  }
 
-      await new Promise(resolve => setTimeout(resolve, interval * 1000))
+  // Check for approval reviews on the specified commit
+  async checkForApproval(commitSha, requiredPermissions, allowAuthors) {
+    const eligibleReviews = await this.gitHubClient.getEligibleReviewsForCommit(
+      commitSha,
+      requiredPermissions,
+      allowAuthors
+    )
+
+    if (eligibleReviews.length === 0) {
+      core.info('No eligible approval reviews found')
+      return null
+    }
+
+    // Return the first eligible review (most recent reviews are typically first)
+    const approvalReview = eligibleReviews[0]
+
+    return {
+      approvedBy: approvalReview.user.login,
+      reviewId: approvalReview.id,
+      reviewType: approvalReview.reviewType
     }
   }
 }
