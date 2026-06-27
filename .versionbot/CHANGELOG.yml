@@ -1,4 +1,17 @@
 - commits:
+    - subject: Update dependency @babel/core to v7.29.6 [SECURITY]
+      hash: ee472eddf69eaa73c35ae7403bae0d696ae06ca7
+      body: |
+        Update @babel/core from 7.25.7 to 7.29.6
+      footer:
+        Change-type: patch
+        change-type: patch
+      author: balena-renovate[bot]
+      nested: []
+  version: 0.3.1
+  title: ""
+  date: 2026-06-27T03:46:19.699Z
+- commits:
     - subject: Warn only on failure to post instructional comment
       hash: 40bbf2c5f18db9e2ec4b12bf83f5b1e3c414cf2b
       body: |
