@@ -1,4 +1,17 @@
 - commits:
+    - subject: Update GitHub Actions
+      hash: f78e71acffa2f13e425ee73aedc89788b2bce970
+      body: |
+        Update actions/checkout
+      footer:
+        Change-type: patch
+        change-type: patch
+      author: balena-renovate[bot]
+      nested: []
+  version: 0.3.2
+  title: ""
+  date: 2026-06-27T05:56:55.849Z
+- commits:
     - subject: Update dependency @babel/core to v7.29.6 [SECURITY]
       hash: ee472eddf69eaa73c35ae7403bae0d696ae06ca7
       body: |
